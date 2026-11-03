@@ -8,4 +8,4 @@
 - Run `go test ./...` and `go vet ./...` for Go changes; format changed Go files with `gofmt`. Explain checks that could not run.
 - Ask before introducing provider-specific behavior that cannot be determined from documentation or verified examples. Do not deploy or change gateway DNS without explicit authorization.
 - Keep CI and release checks aligned; releases must pass the test workflow before publication. Keep Renovate configuration valid as dependencies and Actions change.
-- For every task, read `docs/development.md` and `docs/policy/upstream.md`; identify the GitHub issue and verify explicit scope approval before implementation. Work in a branch and prepare a pull request for human review and merge. Treat unimplemented approval and identity controls as supervised, not automatic.
+- For every task, read `docs/development.md` and `docs/policy/README.md`; identify the GitHub issue and verify explicit scope approval before implementation. Work in a branch and prepare a pull request for human review and merge. Treat unimplemented approval and identity controls as supervised, not automatic.

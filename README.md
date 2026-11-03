@@ -73,6 +73,10 @@ its acknowledgement may duplicate mail. Local acceptance does not guarantee fina
 delivery. No SMTP client or mail server is included.
 
 Every error returns a nonzero exit status, even when other profiles succeeded.
+Each profile result is printed once as `<profile name>: <result>`; unavailable
+IPv4 diagnostics include the configured interface name. Run-level errors use
+`dyndns-updater: error: <reason>` (the program name is not a profile).
+State-lock open errors identify the state directory that must exist and be writable.
 Diagnostics omit credentials, raw provider bodies, and sendmail output. Secure
 both configuration and state: state includes operational addresses and mail content.
 Configuration is limited to 1 MiB and state to 8 MiB. A persistent mail outage

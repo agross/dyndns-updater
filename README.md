@@ -31,7 +31,16 @@ GitHub Actions checks formatting, runs `go vet`, and runs the test suite with th
 
 ### Try a pull request build
 
-After the pull request's **CI** workflow succeeds, open its run from the PR's **Checks** tab (or the repository's **Actions** tab). Sign in to GitHub and download `dyndns-updater-pr-<PR number>-<merge SHA>` from the run's **Artifacts** section. Artifacts expire after 14 days; rerun CI if needed. The download is a ZIP containing four `.tar.gz` archives and `checksums.txt`. The archives contain an executable named `dyndns-updater`; `linux` means Linux, `darwin` means macOS, and `amd64`/`arm64` selects the CPU architecture (Apple Silicon uses `darwin_arm64`).
+After the pull request's **CI** workflow succeeds, open its run from the PR's **Checks** tab (or the repository's **Actions** tab). Sign in to GitHub and choose the download for your machine from the run's **Artifacts** section:
+
+| Platform | Artifact name |
+| --- | --- |
+| Linux amd64 | `dyndns-updater-pr-<PR number>-linux-amd64-<merge SHA>` |
+| Linux arm64 | `dyndns-updater-pr-<PR number>-linux-arm64-<merge SHA>` |
+| macOS amd64 (Intel) | `dyndns-updater-pr-<PR number>-macos-amd64-<merge SHA>` |
+| macOS arm64 (Apple Silicon) | `dyndns-updater-pr-<PR number>-macos-arm64-<merge SHA>` |
+
+Artifacts expire after 14 days; rerun CI if needed. Each download is a ZIP containing only that target's `.tar.gz` archive and its own `checksums.txt`. The archive contains an executable named `dyndns-updater`; archive filenames use `linux` for Linux and `darwin` for macOS, with `amd64`/`arm64` selecting the CPU architecture (Apple Silicon uses `darwin_arm64`).
 
 Extract the ZIP, then verify and unpack the archive for your machine, for example on Linux amd64:
 

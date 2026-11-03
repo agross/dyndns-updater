@@ -1,0 +1,178 @@
+package main
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"os/exec"
+	"strings"
+	"time"
+)
+
+type dependencies struct {
+	address func(string) (string, error)
+	now     func() time.Time
+	mail    func(Config, string) error
+}
+
+func productionDependencies() dependencies { return dependencies{interfaceIPv4, time.Now, submitMail} }
+func interfaceIPv4(name string) (string, error) {
+	iface, err := net.InterfaceByName(name)
+	if err != nil {
+		return "", errors.New("interface unavailable")
+	}
+	addrs, err := iface.Addrs()
+	if err != nil {
+		return "", errors.New("interface addresses unavailable")
+	}
+	for _, a := range addrs {
+		ip, _, e := net.ParseCIDR(a.String())
+		if e == nil && ip.To4() != nil && !ip.IsUnspecified() && !ip.IsMulticast() {
+			return ip.To4().String(), nil
+		}
+	}
+	return "", errors.New("interface has no IPv4 address")
+}
+func identity(p Profile) string {
+	b, _ := json.Marshal([]string{p.Provider, p.Target, p.Interface, p.Endpoint})
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+func providerUpdate(c Config, p Profile, ip string) error {
+	u, _ := url.Parse(p.Endpoint)
+	q := u.Query()
+	q.Set("hostname", p.Target)
+	if p.Provider == "desec" {
+		q.Set("myipv4", ip)
+		q.Set("myipv6", "preserve")
+	} else {
+		q.Set("myip", ip)
+	}
+	u.RawQuery = q.Encode()
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return errors.New("invalid provider request")
+	}
+	req.Header.Set("User-Agent", "dyndns-updater/1 (one-shot)")
+	if p.Provider == "desec" {
+		req.Header.Set("Authorization", "Token "+p.Token)
+	} else {
+		req.SetBasicAuth(p.Username, p.Password)
+	}
+	client := &http.Client{Timeout: c.timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	resp, err := client.Do(req)
+	if err != nil {
+		return errors.New("provider transport failure (DNS, connection, or TLS)")
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("provider HTTP failure (%d)", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4097))
+	if err != nil || len(body) > 4096 {
+		return errors.New("invalid provider response")
+	}
+	fields := strings.Fields(string(body))
+	if p.Provider == "desec" {
+		if len(fields) == 1 && fields[0] == "good" {
+			return nil
+		}
+	} else if len(fields) == 2 && (fields[0] == "good" || fields[0] == "nochg") && fields[1] == ip {
+		return nil
+	}
+	return errors.New("provider rejected update or returned malformed success")
+}
+func submitMail(c Config, body string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, c.Sendmail, "-oi", "--", c.Recipient)
+	cmd.Stdin = strings.NewReader("To: " + c.Recipient + "\nSubject: dyndns-updater profile changes\nContent-Type: text/plain; charset=UTF-8\n\n" + body)
+	// Never forward MTA output: wrappers can echo their input or configuration.
+	if cmd.Run() != nil {
+		return errors.New("local sendmail submission failed")
+	}
+	return nil
+}
+func update(c Config, d dependencies, out io.Writer) error {
+	lock, err := lockState(c.State)
+	if err != nil {
+		return err
+	}
+	defer lock.Close()
+	s, err := readState(c.State)
+	if err != nil {
+		return err
+	}
+	results := []string{}
+	var failures []error
+	for _, p := range c.Profiles {
+		old := s.Profiles[p.Name]
+		id := identity(p)
+		if old.Identity != id {
+			old = profileState{Identity: id}
+		}
+		current := old
+		ip, e := d.address(p.Interface)
+		if parsed := net.ParseIP(ip); e != nil || parsed == nil || parsed.To4() == nil || parsed.IsUnspecified() || parsed.IsMulticast() {
+			results = append(results, p.Name+": interface IPv4 unavailable")
+			failures = append(failures, fmt.Errorf("%s: interface IPv4 unavailable", p.Name))
+			continue
+		}
+		status := "unchanged"
+		if old.Address != ip || old.Failing || old.Updated.IsZero() || d.now().Sub(old.Updated) >= c.refresh {
+			e = providerUpdate(c, p, ip)
+			if e != nil {
+				current.Failing = true
+				status = e.Error()
+				failures = append(failures, fmt.Errorf("%s: %s", p.Name, status))
+				if !old.Failing {
+					s.Dirty = true
+				}
+			} else {
+				current.Address = ip
+				current.Updated = d.now().UTC()
+				current.Failing = false
+				status = "confirmed " + ip
+				if old.Address != ip || old.Failing {
+					s.Dirty = true
+				}
+			}
+			s.Profiles[p.Name] = current
+			// Commit independent outcomes and the notification intent together, before
+			// proceeding to another provider. A crash leaves Dirty for summary recovery.
+			if e := saveState(c.State, s); e != nil {
+				return errors.Join(append(failures, e)...)
+			}
+		}
+		results = append(results, p.Name+": "+status)
+	}
+	summary := strings.Join(results, "\n") + "\n"
+	fmt.Fprint(out, summary)
+	if s.Dirty {
+		s.Pending = append(s.Pending, summary)
+		s.Dirty = false
+	}
+	// Persist notification content before submission. Successful local acceptance
+	// is recorded afterwards: a crash in between may duplicate, never lose, mail.
+	if err := saveState(c.State, s); err != nil {
+		return errors.Join(append(failures, err)...)
+	}
+	for len(s.Pending) > 0 {
+		if err := d.mail(c, s.Pending[0]); err != nil {
+			failures = append(failures, err)
+			break
+		}
+		s.Pending = s.Pending[1:]
+		if err := saveState(c.State, s); err != nil {
+			return errors.Join(append(failures, err)...)
+		}
+	}
+	return errors.Join(failures...)
+}

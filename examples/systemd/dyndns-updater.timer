@@ -1,0 +1,11 @@
+[Unit]
+Description=Check gateway dynamic DNS every minute
+
+[Timer]
+OnCalendar=*-*-* *:*:00
+Persistent=true
+AccuracySec=1s
+Unit=dyndns-updater.service
+
+[Install]
+WantedBy=timers.target

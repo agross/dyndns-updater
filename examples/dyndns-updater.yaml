@@ -1,0 +1,18 @@
+# Install as /etc/dyndns-updater.yaml, owned by root with mode 0600.
+state: /var/lib/dyndns-updater/state.json
+refresh: 600h # 25 days; Go duration syntax (h, m, s), not "25d"
+timeout: 30s # per provider request and sendmail invocation
+sendmail: /usr/sbin/sendmail
+recipient: root
+profiles:
+  - name: gateway-dns
+    provider: desec
+    interface: telekom
+    target: gateway.example.invalid
+    token: REPLACE_WITH_DESEC_TOKEN
+  - name: gateway-tunnel
+    provider: tunnelbroker
+    interface: telekom
+    target: "123456" # Tunnel ID
+    username: REPLACE_WITH_TUNNELBROKER_USERNAME
+    password: REPLACE_WITH_TUNNEL_UPDATE_KEY

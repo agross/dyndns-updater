@@ -1,0 +1,13 @@
+[Unit]
+Description=One-shot gateway dynamic DNS updates
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/dyndns-updater --config /etc/dyndns-updater.yaml
+StateDirectory=dyndns-updater
+StateDirectoryMode=0700
+UMask=0077
+# Do not kill a run waiting for an interface-triggered invocation's lock.
+TimeoutStartSec=infinity

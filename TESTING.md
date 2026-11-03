@@ -1,8 +1,10 @@
 # Testing
 
-The default suite is deterministic, offline, and safe to run without credentials. Test observable behavior through the CLI and provider HTTP requests; use temporary config and state directories and local fake HTTP/DNS services and a fake sendmail executable. Exercise complete user journeys rather than asserting internal implementation details. Add one failing test per behavior slice before implementing it.
-
-Run `go test ./...` locally. CI also runs `go vet ./...`, checks formatting, and runs tests with the race detector. The first test builds the executable and checks its help output; it is only a scaffold, not evidence that DNS updates work.
+Run `go test ./...`, `go test -race ./...`, `go vet ./...`, and `gofmt -l .`.
+The default suite needs no credentials and never updates real DNS or submits real
+mail. Local HTTP fake providers, temporary configuration/state, synthetic
+interface inputs, controlled timestamps, and fake sendmail executables exercise
+observable CLI and provider boundaries.
 
 ## CI and artifact verification
 
@@ -10,15 +12,48 @@ For workflow changes, run `actionlint .github/workflows/*.yml` and `git diff --c
 
 For PR artifacts, exercise the workflow's build commands for Linux and macOS on amd64 and arm64, verify `checksums.txt`, extract the Linux amd64 archive on a matching host, and run its `--help`. On GitHub, confirm exactly one `pull_request` CI run for the current head, no feature-branch `push` CI run, and exactly four separately downloadable artifacts clearly named for Linux amd64, Linux arm64, macOS amd64, and macOS arm64. Download each artifact and confirm it contains only the matching archive and a `checksums.txt` that verifies that archive independently. Verify every archive's executable mode and run the extracted Linux amd64 `--help` on a matching host. Confirm the artifact names and archive filenames use Git's short abbreviation of the run's checked-out merge SHA (`git rev-parse --short HEAD`, distinct from the PR head; length is not fixed), matching the build step's `short_sha` output, and retain the 14-day expiry. A `main` push cannot be exercised until a human merges; check its trigger configuration without pushing to `main`. These checks do not prove runtime compatibility on every target. See the [artifact instructions](README.md#try-a-pull-request-build).
 
-## Acceptance cases to implement
+## Acceptance evidence
+- `TestCLIHelp` builds and runs CLI help.
+- `TestUpdateJourney` covers first confirmation, no-op, changed address,
+  controlled 25-day refresh, state removal, and deSEC IPv6 preservation/auth.
+- `TestFailureTransitionsAndIndependentProfiles` covers Tunnelbroker request/auth,
+  `nochg` confirmation, independent results, failure entry, persistent/changed
+  errors, recovery, missing-interface suppression, and all-profile summaries.
+- `TestIdentityAndCorruptState` covers credential-only rotation, provider/target/
+  interface changes, malformed/invalid state preservation, and unreadable state.
+- `TestRejectedResponsesAndTimeout` covers HTTP failures, rejected/malformed/
+  oversized responses, response-address mismatch, retry, and bounded timeout.
+- `TestInvalidConfigDoesNotLeakOrMail` covers malformed/multiple-document YAML,
+  unknown keys, empty profiles, insecure/credential-bearing endpoint rejection,
+  nonzero exits, and secret-free diagnostics. `TestStateContainsNoCredentials`
+  checks persisted state.
+- `TestPendingMailAndCrashBoundary` covers pending submission retries independent
+  of provider updates and durable notification intent after interruption.
+- `TestAddressChangeDuringUpdate` records only the requested address and catches
+  the later address on the next invocation.
+- `TestBuiltCLIWithLocalSendmail` executes the actual built CLI, OS loopback
+  detection, local HTTP provider and executable fake MTA; verifies no-op,
+  private state permissions, sendmail failure exit, and later mail retry.
+- `TestConcurrentCLIAndKilledLockHolder` executes overlapping CLI processes,
+  proves the second waits, kills the lock holder, and verifies OS lock release,
+  retry, and intact state. It also tests normal serialized no-op behavior.
+- `TestInterruptedLaterProfileKeepsEarlierSuccess` kills a process while its
+  second provider is blocked and verifies the earlier confirmed result and
+  notification intent survive restart without a redundant first-provider request.
+- `TestConfigurationValidationAtCLI` rejects invalid durations, recipient header
+  injection, relative paths, duplicates, invalid credentials/targets, and oversized YAML.
+- `TestKilledAfterLocalMailAcceptanceRetries` uses an executable fake MTA that
+  accepts mail then SIGKILLs its parent updater. Restart retries the durable
+  pending message, demonstrating the documented duplicate-mail crash window.
 
-- Initial update sends the detected address; unchanged address skips an update; changed address updates; elapsed refresh interval forces an update.
-- Failed, malformed, or rejected provider responses never mark an update successful; later runs retry. A successful profile stays independent of a failing profile.
-- deSEC receives its documented IPv6 preservation option; Tunnelbroker gets the expected DynDNS2 request. Verify actual provider contracts against documentation before locking fixtures.
-- Invalid YAML, invalid addresses, missing interface, unavailable detection services, corrupt state, and unwritable state produce clear failures without leaking credentials.
-- Concurrent invocations cannot corrupt state or lose a successful profile update. Test interruption and restart around state persistence.
-- DNS fallback works when the primary resolver fails; resolver and provider timeouts remain bounded. Test IPv4 and IPv6 address selection separately when supported.
-- Notification success and failure are observable; mail errors cannot turn failed DNS updates into successes or silently erase them.
-- Timer and interface-hook invocations use the same one-shot update rules. Exercise scheduling with a controlled clock or explicit inputs rather than waiting 25 days.
 
-Before production use, separately validate real provider behavior and a gateway migration with explicit authorization. Live-provider tests are not part of the default suite.
+The subprocess interface tests use Linux `lo` and skip when that interface is not
+available (for example macOS); the synthetic-address journeys run on both release
+platforms. Tests use brief bounded waits only to assert that a blocked invocation
+has not reached its provider, never to simulate the refresh interval.
+
+[Provider fixtures are based on authoritative documentation](docs/provider-contracts.md),
+not live-provider experiments. Real-provider verification, actual gateway network
+manager integration, MTA delivery, timer installation, and production migration
+remain separate authorized operator checks. Public IP discovery and fallback DNS
+are out of scope for #2 (issues #3/#4).

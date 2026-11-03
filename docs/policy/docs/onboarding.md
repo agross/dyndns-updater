@@ -10,11 +10,11 @@ Work on branches and open pull requests. Run CI and independent review against t
 
 ## Access and integrations
 
-Use separate scoped developer and reviewer identities. Require pull requests and CI, prevent force pushes, disable auto-merge, and enforce the human's merge and release authority outside agent instructions. Protect policy and workflow changes. Verify actual repository settings and test negative cases safely; if identity or permission boundaries cannot be enforced, keep operation supervised and withhold broad credentials. Do not purchase upgrades without approval.
+Use separate scoped developer and reviewer identities. Require pull requests and CI, prevent force pushes, disable auto-merge, and enforce the human's merge and release authority outside agent instructions. Protect policy and workflow changes. Never give an unattended worker the human owner’s personal administrator token. Actions performed with the human’s credentials are not technically distinguishable from the human’s actions. Verify actual repository settings and test negative cases on a safe test branch or through a dry run; never test a boundary with a live production mutation; if identity or permission boundaries cannot be enforced, keep operation supervised and withhold broad credentials. Do not purchase upgrades without approval.
 
 Verify webhook delivery, signature validation, event routing, and access scope before enabling automation. Reconcile Hermes with the label-based rule; older Hermes skills may still require explicit approval. Do not treat the label as evidence that these controls exist.
 
-Keep production credentials out of untrusted CI and preview execution. Use synthetic data and disposable infrastructure. Grant telemetry read-only, bounded, and redacted access; enable support and previews only within their separately approved access and hosting boundaries. Clean up previews when work closes. Never use previews to deploy to production.
+Never check out untrusted pull-request code in a privileged job exposing write tokens or secrets. Keep production credentials out of untrusted CI and preview execution. Use synthetic data and disposable infrastructure. Grant telemetry read-only, bounded, and redacted access; enable support and previews only within their separately approved access and hosting boundaries. Clean up previews when work closes. Never use previews to deploy to production.
 
 ## Supervised pilot
 

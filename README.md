@@ -27,7 +27,24 @@ Order and details may change as provider behavior is verified. No deployment con
 
 ## CI, releases, and dependencies
 
-GitHub Actions checks formatting, runs `go vet`, and runs the test suite with the race detector on pushes and pull requests. A human starts the release workflow for an existing tag in the form `v1.2.3`; it runs those checks before publishing a GitHub release with Linux and macOS binaries for amd64 and arm64, plus SHA-256 checksums. Releases are not yet configured or tested on GitHub; they require a GitHub remote and Actions permissions to create releases.
+GitHub Actions checks formatting, runs `go vet`, and runs the test suite with the race detector once per pull request update and on pushes to `main`. Pushes to other branches and tags do not start a separate CI run. The same checks are reusable by the manually triggered release workflow: a human selects an existing tag in the form `v1.2.3`, and the resolved release commit must pass CI before publication of Linux and macOS binaries for amd64 and arm64, plus SHA-256 checksums.
+
+### Try a pull request build
+
+After the pull request's **CI** workflow succeeds, open its run from the PR's **Checks** tab (or the repository's **Actions** tab). Sign in to GitHub and download `dyndns-updater-pr-<PR number>-<merge SHA>` from the run's **Artifacts** section. Artifacts expire after 14 days; rerun CI if needed. The download is a ZIP containing four `.tar.gz` archives and `checksums.txt`. The archives contain an executable named `dyndns-updater`; `linux` means Linux, `darwin` means macOS, and `amd64`/`arm64` selects the CPU architecture (Apple Silicon uses `darwin_arm64`).
+
+Extract the ZIP, then verify and unpack the archive for your machine, for example on Linux amd64:
+
+```sh
+sha256sum -c checksums.txt
+mkdir -p pr-build
+tar -xzf dyndns-updater_<merge-SHA>_linux_amd64.tar.gz -C pr-build
+./pr-build/dyndns-updater --help
+```
+
+Replace `<merge-SHA>` with the SHA in the downloaded filenames. On macOS use `shasum -a 256 -c checksums.txt` to verify checksums. The tar archive preserves the executable bit; if your extraction tool removes it, run `chmod +x pr-build/dyndns-updater`.
+
+These are untrusted, unsigned test builds of GitHub's PR **merge commit**, not just the branch head and not a published release. Review the changes before running them and use an isolated test environment without production credentials. Checksums detect damaged downloads, not a malicious build. PR CI only builds and uploads artifacts after the checks pass; it neither publishes releases nor deploys to a gateway. Push CI and release CI do not upload PR artifacts. Cross-compilation does not establish runtime compatibility on macOS or arm64.
 
 Renovate is configured to propose dependency and GitHub Actions updates. Enable the Renovate GitHub App for the repository after it exists on GitHub. The Go module path is provisional until the repository URL is known.
 

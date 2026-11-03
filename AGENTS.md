@@ -9,4 +9,4 @@
 - Ask before introducing provider-specific behavior that cannot be determined from documentation or verified examples. Do not deploy or change gateway DNS without explicit authorization.
 - Keep CI and release checks aligned; releases must pass the test workflow before publication. Keep Renovate configuration valid as dependencies and Actions change.
 - For every task, read `docs/development.md` and `docs/policy/README.md`; identify the GitHub issue and verify it has the `hermes:developer` label before implementation. Work in a branch and prepare a pull request for human review and merge. Treat identity controls as supervised until enforced.
-- The `ready-for-agent` triage label is `hermes:developer`; it authorizes implementation of the issue. This project exception overrides the copied policy’s separate scope-approval requirement.
+- The `ready-for-agent` triage label is `hermes:developer`; it authorizes implementation of the issue. The project policy is maintained in this repository.

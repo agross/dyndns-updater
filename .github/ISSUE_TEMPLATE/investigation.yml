@@ -1,0 +1,9 @@
+name: Investigation
+description: Request a bounded investigation
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question and evidence
+    validations:
+      required: true

@@ -4,7 +4,7 @@ This guide describes the supervised setup for this repository. The [project poli
 
 ## Work and authorization
 
-Use GitHub issues for features, defects, investigations, and support. Describe intended behavior, acceptance criteria, and exclusions in each issue. The `hermes:developer` label authorizes implementation; separate explicit scope approval is not required. Escalate unclear requirements or material scope changes. A label does not authorize merging, production changes, financial commitments, or account changes.
+Use GitHub issues for features, defects, investigations, and support. Describe intended behavior, acceptance criteria, and exclusions in each issue. The `hermes:developer` label authorizes implementation; separate explicit scope approval is not required. Recheck the label when starting or resuming work. Stop implementation if the label is removed or the issue scope materially changes, and escalate scope changes or unclear requirements to the owner. A label does not authorize merging, production changes, financial commitments, or account changes.
 
 Work on branches and open pull requests. Run CI and independent review against the current head; give the human acceptance evidence, checks, findings, and remaining risks. Limit repair and review to three rounds. The human merges and controls production releases.
 

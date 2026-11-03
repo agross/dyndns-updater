@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -28,7 +29,7 @@ type diskState struct {
 func lockState(path string) (*os.File, error) {
 	f, err := os.OpenFile(path+".lock", os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
-		return nil, errors.New("cannot open state lock (create state directory first)")
+		return nil, fmt.Errorf("cannot open state lock (state directory %q must exist and be writable)", filepath.Dir(path))
 	}
 	for {
 		err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX)

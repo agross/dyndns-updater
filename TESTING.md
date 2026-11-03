@@ -14,6 +14,11 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
 
 ## Acceptance evidence
 - `TestCLIHelp` builds and runs CLI help.
+- `TestCLIMissingStateDirectory` identifies the required state directory.
+- `TestCLIMissingInterfacesReportedOnce` exercises OS interface lookup through
+  the CLI, names both absent interfaces, and checks single profile diagnostics
+  without mail. `TestCLIProfileAndMailFailuresReportedOnce` checks provider
+  failures are not duplicated and run-level mail errors remain visible.
 - `TestUpdateJourney` covers first confirmation, no-op, changed address,
   controlled 25-day refresh, state removal, and deSEC IPv6 preservation/auth.
 - `TestFailureTransitionsAndIndependentProfiles` covers Tunnelbroker request/auth,

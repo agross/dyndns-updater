@@ -121,8 +121,9 @@ func update(c Config, d dependencies, out io.Writer) error {
 		current := old
 		ip, e := d.address(p.Interface)
 		if parsed := net.ParseIP(ip); e != nil || parsed == nil || parsed.To4() == nil || parsed.IsUnspecified() || parsed.IsMulticast() {
-			results = append(results, p.Name+": interface IPv4 unavailable")
-			failures = append(failures, fmt.Errorf("%s: interface IPv4 unavailable", p.Name))
+			message := fmt.Sprintf("%s: interface %q IPv4 unavailable", p.Name, p.Interface)
+			results = append(results, message)
+			failures = append(failures, errors.New(message))
 			continue
 		}
 		status := "unchanged"
@@ -155,6 +156,11 @@ func update(c Config, d dependencies, out io.Writer) error {
 	}
 	summary := strings.Join(results, "\n") + "\n"
 	fmt.Fprint(out, summary)
+	// These errors are already in the profile summary. Keep them in the returned
+	// error for exit status and callers, without printing them a second time.
+	for i, failure := range failures {
+		failures[i] = reportedError{failure}
+	}
 	if s.Dirty {
 		s.Pending = append(s.Pending, summary)
 		s.Dirty = false

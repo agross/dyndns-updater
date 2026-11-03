@@ -1,0 +1,5 @@
+/dyndns-updater
+/coverage.out
+*.cache
+.env
+/dist/

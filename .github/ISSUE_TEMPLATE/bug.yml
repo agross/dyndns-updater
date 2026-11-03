@@ -1,0 +1,13 @@
+name: Bug report
+description: Report incorrect behavior
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed and expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce

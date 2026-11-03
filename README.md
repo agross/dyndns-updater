@@ -1,29 +1,113 @@
 # dyndns-updater
 
-A planned command-line dynamic DNS client, distributed as a single Go binary. This repository is an early development scaffold; it cannot update DNS yet.
+A single-binary, one-shot Go client that updates deSEC DNS A records and Hurricane
+Electric Tunnelbroker IPv4 endpoints from configured network interfaces. deSEC
+AAAA records are always preserved. No Perl or Python runtime is required.
 
-## Goals
+## Configuration and operation
 
-- YAML configuration with independent profiles for deSEC and Hurricane Electric Tunnelbroker.
-- IPv4 discovery from an interface or a public service; preserve deSEC IPv6 records when configured.
-- Persistent state to avoid unnecessary updates, with periodic refresh and retry after failures.
-- One-shot operation scheduled by systemd timers, including a refresh after a configurable interval (the intended gateway uses 25 days).
-- Configurable fallback DNS resolvers and email notifications through the local mail submission program.
+Copy [the example YAML](examples/dyndns-updater.yaml) to a private local file
+(typically `/etc/dyndns-updater.yaml`, root-owned mode `0600`). Configure one or
+more named profiles and create the state directory with mode `0700` before running:
 
-The existing gateway uses interface `telekom`, DynDNS2 for both providers, and deSEC's `myipv6=preserve` parameter. Credentials and hostnames belong in local configuration, not this repository. Provider-specific refresh limits and responses need verification before implementation.
+```sh
+go build -trimpath -o dyndns-updater .
+./dyndns-updater --help
+./dyndns-updater --config /path/to/config.yaml
+```
+
+The default configuration path is `/etc/dyndns-updater.yaml`. Unknown YAML keys,
+duplicate mapping keys, multiple documents, unsupported providers, missing
+credentials, and invalid durations/targets fail before any updates or mail.
+`refresh` defaults to `600h` (25 days); use Go duration syntax, not `25d`.
+`timeout` defaults to `30s` per provider request and sendmail invocation.
+`state` and `sendmail` paths must be absolute. Mail defaults to local `root` via
+`/usr/sbin/sendmail -oi -- root`; submission is bounded by the configured timeout.
+
+Each run detects each profile's current interface IPv4 address. When an interface
+has multiple IPv4 addresses, the first IPv4 address returned by the OS is used;
+configure a dedicated interface if selection matters. No public address discovery
+or custom DNS fallback is included (tracked in #3 and #4).
+
+Unchanged successful profiles are skipped until refresh is due. Failed updates
+are retried on every later invocation, independently of other profiles. HTTP 200
+alone is not success: provider-specific response validation is required. See
+[provider contracts and limits](docs/provider-contracts.md) for verified request
+and response details, endpoint overrides, and the HE refresh caveat.
+
+### State, concurrency, and recovery
+
+The state file records confirmed addresses, timestamps, hashed profile identity,
+provider failure state, and pending notification content, never credentials.
+Provider, target, interface, or endpoint changes invalidate a profile's old state;
+credential-only changes do not. A failed update retains its last confirmed address.
+Removing the state file forces fresh updates. Corrupt or unreadable state causes
+an error and is preserved, not silently reset. Keep the directory private and use
+a local filesystem supporting advisory locks, atomic rename, and fsync.
+
+Runs block on a stable separate `<state>.lock` file for their entire operation.
+Do **not** delete that lock file while a process might hold it. The OS releases the
+lock on exit, including SIGKILL. State is atomically replaced with mode `0600`,
+synced along with its parent directory, and checkpointed after each attempted
+provider update so an independent success survives interruption before a later
+profile finishes. A crash after provider acceptance but before state persistence
+can cause another safe update on restart. A new address appearing during an update
+is detected by the next run; only the address actually confirmed is recorded.
+
+### Notifications and exits
+
+One summary containing every configured profile is queued when a successful
+update changes its recorded address (including initial confirmation), or a profile
+enters/exits provider failure (DNS, HTTP, transport, or API). No notification is
+triggered by a no-op, successful same-address refresh, repeated/changed errors
+while still failing, missing interface, or unchanged interface return. A previously
+queued notification is still retried during an interface outage. Invalid
+configuration does not submit mail.
+
+Summaries and retry intent are persisted before local sendmail submission. Failed
+submission returns nonzero and is retried later without repeating successful
+provider updates. Pending summaries are delivered in order; after an interrupted
+multi-profile run a durable change flag produces an all-profile summary on restart.
+Delivery is **at least once**: a crash after local MTA acceptance but before writing
+its acknowledgement may duplicate mail. Local acceptance does not guarantee final
+delivery. No SMTP client or mail server is included.
+
+Every error returns a nonzero exit status, even when other profiles succeeded.
+Diagnostics omit credentials, raw provider bodies, and sendmail output. Secure
+both configuration and state: state includes operational addresses and mail content.
+Configuration is limited to 1 MiB and state to 8 MiB. A persistent mail outage
+with many changes can fill the pending-summary backlog; an oversized state write
+fails without replacing the previous state and requires operator attention.
+
+## Scheduling (examples, not an automatic deployment)
+
+Install the binary at `/usr/local/bin/dyndns-updater` and review the provided
+[systemd service](examples/systemd/dyndns-updater.service) and
+[timer](examples/systemd/dyndns-updater.timer). The service creates the private
+state directory; the timer invokes the one-shot service once per minute. It runs
+as root to read private configuration and use the gateway's local MTA. The
+[interface-up hook](examples/interface-up.sh) invokes the same command; install
+it in the appropriate hook location for the gateway's network manager, with
+executable permissions. Manual invocations must have access to the state directory.
+No example is installed or enabled by the build or tests. Real-provider validation
+and gateway migration require separate authorization.
 
 ## Development
 
-Install Go 1.27.3 or newer. Run `go test ./...` and `go vet ./...`. See [TESTING.md](TESTING.md) for test boundaries and planned coverage. `go run . --help` shows the current scaffold; running without arguments exits with an error because updating is not implemented.
+Install Go 1.27.3 or newer. Run:
 
-## Initial slices
+```sh
+go test ./...
+go test -race ./...
+go vet ./...
+gofmt -l .
+```
 
-1. Specify configuration and validation, including secret handling.
-2. Add one-shot interface detection and a DynDNS2 update against local fake servers.
-3. Add reliable state, independent profiles, retries, and timer-based refresh.
-4. Add local email notifications for the first release; add public IP detection and fallback DNS in later slices.
-
-Order and details may change as provider behavior is verified. No deployment configuration or production migration has been validated yet.
+See [TESTING.md](TESTING.md), [agent guidance](AGENTS.md), and the
+[development workflow](docs/development.md). Work uses issues, branches, PRs,
+independent review, and human merges. The default suite uses only local fake
+providers, temporary state, synthetic addresses, and fake sendmail; it never
+updates real DNS or submits real mail.
 
 ## CI, releases, and dependencies
 
@@ -55,10 +139,5 @@ Replace `<merge-SHA>` with the short SHA in the downloaded filenames. Both artif
 
 These are untrusted, unsigned test builds of GitHub's PR **merge commit**, not just the branch head and not a published release. Review the changes before running them and use an isolated test environment without production credentials. Checksums detect damaged downloads, not a malicious build. PR CI only builds and uploads artifacts after the checks pass; it neither publishes releases nor deploys to a gateway. Push CI and release CI do not upload PR artifacts. Cross-compilation does not establish runtime compatibility on macOS or arm64.
 
-Renovate is configured to propose dependency and GitHub Actions updates. Enable the Renovate GitHub App for the repository after it exists on GitHub. The Go module path is provisional until the repository URL is known.
-
-## Agreed project direction
-
-The intended GitHub repository is public under `agross`. Work will use branches, pull requests, passing CI, and human merges. The first usable release must support the gateway’s deSEC and Tunnelbroker profiles and email notifications through the local mail submission program. A systemd timer will schedule the one-shot command every minute. Concurrent invocations wait for an operating-system lock on a separate stable lock file; it is released when the holder exits or is killed, while the state file can be replaced atomically. Send one email listing every configured profile when any profile changes meaningful state: its address changes and the update succeeds, it enters a DNS, HTTP, or provider API failure, or it recovers from such a failure. Repeated unchanged failures, an unchanged successful refresh, and other no-ops do not send mail. Persist profile and notification state across invocations; retry a notification if local sendmail submission fails. All errors yield a nonzero exit status. Interface and configuration errors do not trigger mail; DNS, HTTP, and provider API errors may trigger mail when their failure state changes. Submit mail using the local sendmail interface. Detailed scope and the onboarding workflow are still being discussed.
-
-Removing the state file forces updates on the next run. A corrupt or unreadable state file is an error and must be preserved for diagnosis. Notification delivery is at least once: if the process dies after the local MTA accepts mail but before acceptance is recorded, a retry may duplicate it. Each run detects the current address independently; a change during an update is handled by a subsequent run.
+This implementation does not publish a release, enable a timer, or deploy anything.
+Renovate proposes Go, module, and GitHub Actions updates.

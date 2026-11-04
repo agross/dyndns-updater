@@ -80,7 +80,7 @@ func TestCLIMissingInterfacesReportedOnce(t *testing.T) {
 		t.Fatalf("exit = %d", code)
 	}
 	out := output.String()
-	want := "gateway-dns: interface \"dyndns-no-if\" IPv4 unavailable\ngateway-tunnel: interface \"dyndns-no-if2\" IPv4 unavailable\n"
+	want := "\"gateway-dns\": interface \"dyndns-no-if\" IPv4 unavailable\n\"gateway-tunnel\": interface \"dyndns-no-if2\" IPv4 unavailable\n"
 	if out != want {
 		t.Fatalf("output = %q, want %q", out, want)
 	}
@@ -107,7 +107,7 @@ func TestCLIUpdateDecisionTrace(t *testing.T) {
 	j.write(base)
 	check := func(reason, result string, code, wantCalls int) {
 		t.Helper()
-		want := fmt.Sprintf("dns: interface %q detected IPv4 %s\ndns: %s\ndns: %s\n", `wan "quoted"`, j.ip, reason, result)
+		want := fmt.Sprintf("\"dns\": interface %q detected IPv4 %s\n\"dns\": %s\n\"dns\": %s\n", `wan "quoted"`, j.ip, reason, result)
 		if out := j.run(code); out != want {
 			t.Fatalf("output = %q, want %q", out, want)
 		}
@@ -141,7 +141,7 @@ func TestCLIProfileAndMailFailuresReportedOnce(t *testing.T) {
 	j.write(profile("gateway-dns", "desec", server.URL))
 	j.mailError = true
 	out := j.run(1)
-	want := "gateway-dns: interface \"wan\" detected IPv4 192.0.2.10\ngateway-dns: updating provider: no confirmed state\ngateway-dns: provider HTTP failure (503)\n[error] mail failed\n"
+	want := "\"gateway-dns\": interface \"wan\" detected IPv4 192.0.2.10\n\"gateway-dns\": updating provider: no confirmed state\n\"gateway-dns\": provider HTTP failure (503)\n[error] mail failed\n"
 	if out != want {
 		t.Fatalf("output = %q, want %q", out, want)
 	}

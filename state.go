@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"syscall"
 	"time"
+	"unicode/utf8"
 )
 
 type profileState struct {
@@ -57,6 +58,9 @@ func readState(path string) (diskState, error) {
 	if err != nil || len(content) > 8<<20 {
 		return s, errors.New("state unreadable or exceeds 8 MiB; preserved")
 	}
+	if !utf8.Valid(content) || !uniqueJSONKeys(content) {
+		return s, errors.New("invalid state; preserved")
+	}
 	s = diskState{}
 	dec := json.NewDecoder(bytes.NewReader(content))
 	dec.DisallowUnknownFields()
@@ -67,9 +71,17 @@ func readState(path string) (diskState, error) {
 	if dec.Decode(&extra) != io.EOF {
 		return s, errors.New("invalid state; preserved")
 	}
-	for _, p := range s.Profiles {
+	for name, p := range s.Profiles {
+		if !validProfileName(name) {
+			return s, errors.New("invalid profile state; preserved")
+		}
 		if p.Identity == "" || (p.Address != "" && (net.ParseIP(p.Address) == nil || net.ParseIP(p.Address).To4() == nil || p.Updated.IsZero())) || (p.Address == "" && !p.Updated.IsZero()) {
 			return s, errors.New("invalid profile state; preserved")
+		}
+	}
+	for _, summary := range s.Pending {
+		if !validPendingSummary(summary) {
+			return s, errors.New("invalid pending notification state; preserved")
 		}
 	}
 	return s, nil

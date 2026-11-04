@@ -5,12 +5,12 @@ timeout: 30s # per provider request and sendmail invocation
 sendmail: /usr/sbin/sendmail
 recipient: root
 profiles:
-  - name: gateway-dns
+  gateway-dns:
     provider: desec
     interface: telekom
     target: gateway.example.invalid
     token: REPLACE_WITH_DESEC_TOKEN
-  - name: gateway-tunnel
+  "Gateway tunnel":
     provider: tunnelbroker
     interface: telekom
     target: "123456" # Tunnel ID

@@ -23,6 +23,12 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
   the CLI, names both absent interfaces, and checks single profile diagnostics
   without mail. `TestCLIProfileAndMailFailuresReportedOnce` checks provider
   failures are not duplicated and run-level mail errors remain visible.
+- `TestCLIUpdateDecisionTrace` asserts exact CLI trace output, exit status, and
+  provider-call counts for initial update, no-op, address change, refresh at the
+  configured boundary, failure/retry/recovery, and changed profile identity. It
+  covers quoted source interfaces, credential-safe logs, and separation from mail
+  summaries. Existing multi-profile missing-interface and mixed provider/mail
+  failure tests retain their exact-output assertions with trace lines where relevant.
 - `TestUpdateJourney` covers first confirmation, no-op, changed address,
   controlled 25-day refresh, state removal, and deSEC IPv6 preservation/auth.
 - `TestFailureTransitionsAndIndependentProfiles` covers Tunnelbroker request/auth,
@@ -41,8 +47,10 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
 - `TestAddressChangeDuringUpdate` records only the requested address and catches
   the later address on the next invocation.
 - `TestBuiltCLIWithLocalSendmail` executes the actual built CLI, OS loopback
-  detection, local HTTP provider and executable fake MTA; verifies no-op,
-  private state permissions, sendmail failure exit, and later mail retry.
+  detection, local HTTP provider and executable fake MTA; verifies exact detection/
+  decision/result output for first update and no-op, persistent lock-file existence
+  after success and failure with successful subsequent invocation, private state
+  permissions, sendmail failure exit, and later mail retry.
 - `TestConcurrentCLIAndKilledLockHolder` executes overlapping CLI processes,
   proves the second waits, kills the lock holder, and verifies OS lock release,
   retry, and intact state. It also tests normal serialized no-op behavior.

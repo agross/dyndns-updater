@@ -55,9 +55,21 @@ func TestBuiltCLIWithLocalSendmail(t *testing.T) {
 	defer srv.Close()
 	bin := buildCLI(t)
 	cfg, state, mail := cliConfig(t, srv.URL)
-	for range 2 {
-		if b, e := exec.Command(bin, "--config", cfg).CombinedOutput(); e != nil {
+	for i := range 2 {
+		b, e := exec.Command(bin, "--config", cfg).CombinedOutput()
+		if e != nil {
 			t.Fatalf("run: %v %s", e, b)
+		}
+		decision, result := "updating provider: no confirmed state", "confirmed 127.0.0.1"
+		if i == 1 {
+			decision, result = "skipping update: address unchanged and refresh not due", "unchanged"
+		}
+		want := "dns: interface \"lo\" detected IPv4 127.0.0.1\ndns: " + decision + "\ndns: " + result + "\n"
+		if string(b) != want {
+			t.Fatalf("built CLI output = %q, want %q", b, want)
+		}
+		if _, err := os.Stat(state + ".lock"); err != nil {
+			t.Fatalf("stable lock file missing after exit: %v", err)
 		}
 	}
 	b, e := os.ReadFile(mail)
@@ -88,6 +100,9 @@ func TestBuiltCLIWithLocalSendmail(t *testing.T) {
 	}
 	if b, e := exec.Command(bin, "--config", cfg).CombinedOutput(); e == nil {
 		t.Fatalf("mail error exit zero: %s", b)
+	}
+	if _, err := os.Stat(state + ".lock"); err != nil {
+		t.Fatalf("stable lock file missing after failed exit: %v", err)
 	}
 	if e := os.WriteFile(sm, script, 0700); e != nil {
 		t.Fatal(e)

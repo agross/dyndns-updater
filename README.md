@@ -75,7 +75,10 @@ delivery. No SMTP client or mail server is included.
 Every error returns a nonzero exit status, even when other profiles succeeded.
 Each profile result is printed once as `<profile name>: <result>`; unavailable
 IPv4 diagnostics include the configured interface name. Run-level errors use
-`dyndns-updater: error: <reason>` (the program name is not a profile).
+`[error] <reason>`; square brackets cannot occur in a profile name, so this
+prefix is distinct from profile results. Configuration errors identify the quoted
+attempted filename (including the default path when `--config` is omitted), without
+including configuration contents or raw parser errors.
 State-lock open errors identify the state directory that must exist and be writable.
 Diagnostics omit credentials, raw provider bodies, and sendmail output. Secure
 both configuration and state: state includes operational addresses and mail content.

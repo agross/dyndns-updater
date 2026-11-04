@@ -14,6 +14,10 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
 
 ## Acceptance evidence
 - `TestCLIHelp` builds and runs CLI help.
+- `TestCLIConfigurationFileDiagnostics` checks exact output and nonzero exits for
+  missing files, unreadable directory paths, and invalid YAML, including quoted
+  filenames and credential-safe errors. Run-level errors use `[error]`, distinct
+  from profile names; mixed profile/mail failures retain both independent errors.
 - `TestCLIMissingStateDirectory` identifies the required state directory.
 - `TestCLIMissingInterfacesReportedOnce` exercises OS interface lookup through
   the CLI, names both absent interfaces, and checks single profile diagnostics

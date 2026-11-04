@@ -24,7 +24,7 @@ func printCLIError(out io.Writer, err error) {
 		}
 		return
 	}
-	fmt.Fprintln(out, "dyndns-updater: error:", err)
+	fmt.Fprintln(out, "[error]", err)
 }
 
 func runCLI(args []string, out io.Writer, d dependencies) int {
@@ -46,7 +46,9 @@ func runCLI(args []string, out io.Writer, d dependencies) int {
 		return 1
 	}
 	c, err := loadConfig(*path)
-	if err == nil {
+	if err != nil {
+		err = fmt.Errorf("configuration %q: %w", *path, err)
+	} else {
 		err = update(c, d, out)
 	}
 	if err != nil {

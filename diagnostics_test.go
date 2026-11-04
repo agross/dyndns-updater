@@ -11,6 +11,35 @@ import (
 	"testing"
 )
 
+func TestCLIConfigurationFileDiagnostics(t *testing.T) {
+	for _, kind := range []string{"missing", "directory", "invalid YAML"} {
+		t.Run(kind, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config \"quoted\" file.yaml")
+			reason := "cannot read configuration"
+			switch kind {
+			case "directory":
+				if err := os.Mkdir(path, 0700); err != nil {
+					t.Fatal(err)
+				}
+				reason = "configuration unreadable or exceeds 1 MiB"
+			case "invalid YAML":
+				if err := os.WriteFile(path, []byte("token: [private-secret\n"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				reason = "invalid YAML configuration"
+			}
+			var output bytes.Buffer
+			if code := runCLI([]string{"--config", path}, &output, dependencies{}); code != 1 {
+				t.Fatalf("exit = %d, want 1", code)
+			}
+			want := fmt.Sprintf("[error] configuration %q: %s\n", path, reason)
+			if output.String() != want {
+				t.Fatalf("output = %q, want %q", output.String(), want)
+			}
+		})
+	}
+}
+
 func TestCLIMissingStateDirectory(t *testing.T) {
 	j := newJourney(t)
 	j.write(profile("dns", "desec", "http://127.0.0.1:1"))
@@ -24,7 +53,7 @@ func TestCLIMissingStateDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := j.run(1)
-	want := fmt.Sprintf("dyndns-updater: error: cannot open state lock (state directory %q must exist and be writable)\n", dir)
+	want := fmt.Sprintf("[error] cannot open state lock (state directory %q must exist and be writable)\n", dir)
 	if out != want {
 		t.Fatalf("output = %q, want %q", out, want)
 	}
@@ -66,7 +95,7 @@ func TestCLIProfileAndMailFailuresReportedOnce(t *testing.T) {
 	j.write(profile("gateway-dns", "desec", server.URL))
 	j.mailError = true
 	out := j.run(1)
-	want := "gateway-dns: provider HTTP failure (503)\ndyndns-updater: error: mail failed\n"
+	want := "gateway-dns: provider HTTP failure (503)\n[error] mail failed\n"
 	if out != want {
 		t.Fatalf("output = %q, want %q", out, want)
 	}

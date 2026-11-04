@@ -126,8 +126,25 @@ func update(c Config, d dependencies, out io.Writer) error {
 			failures = append(failures, errors.New(message))
 			continue
 		}
+		fmt.Fprintf(out, "%s: interface %q detected IPv4 %s\n", p.Name, p.Interface, ip)
+		reason := ""
+		switch {
+		case s.Profiles[p.Name].Identity != "" && s.Profiles[p.Name].Identity != id:
+			reason = "profile identity changed"
+		case old.Failing:
+			reason = "retrying previous failure"
+		case old.Updated.IsZero():
+			reason = "no confirmed state"
+		case old.Address != ip:
+			reason = "address changed"
+		case d.now().Sub(old.Updated) >= c.refresh:
+			reason = "refresh due"
+		}
 		status := "unchanged"
-		if old.Address != ip || old.Failing || old.Updated.IsZero() || d.now().Sub(old.Updated) >= c.refresh {
+		if reason != "" {
+			// Emit before the request so a slow provider does not hide the decision.
+			// Keep operational traces out of durable notification summaries.
+			fmt.Fprintf(out, "%s: updating provider: %s\n", p.Name, reason)
 			e = providerUpdate(c, p, ip)
 			if e != nil {
 				current.Failing = true
@@ -151,6 +168,8 @@ func update(c Config, d dependencies, out io.Writer) error {
 			if e := saveState(c.State, s); e != nil {
 				return errors.Join(append(failures, e)...)
 			}
+		} else {
+			fmt.Fprintf(out, "%s: skipping update: address unchanged and refresh not due\n", p.Name)
 		}
 		results = append(results, p.Name+": "+status)
 	}

@@ -46,8 +46,14 @@ an error and is preserved, not silently reset. Keep the directory private and us
 a local filesystem supporting advisory locks, atomic rename, and fsync.
 
 Runs block on a stable separate `<state>.lock` file for their entire operation.
-Do **not** delete that lock file while a process might hold it. The OS releases the
-lock on exit, including SIGKILL. State is atomically replaced with mode `0600`,
+The file intentionally remains after both successful and failed invocations; its
+existence is **not** a busy/stale-lock indicator. Mutual exclusion comes from the
+kernel's advisory `flock` on the open file, not from creating or deleting it. Closing
+the descriptor on exit (including SIGKILL) releases the lock, so the next invocation
+can reuse the same file. Do **not** delete it while a process might hold it: a new
+file at the same path would have a different inode and could permit concurrent
+holders, bypassing serialization.
+State is atomically replaced with mode `0600`,
 synced along with its parent directory, and checkpointed after each attempted
 provider update so an independent success survives interruption before a later
 profile finishes. A crash after provider acceptance but before state persistence
@@ -72,8 +78,25 @@ Delivery is **at least once**: a crash after local MTA acceptance but before wri
 its acknowledgement may duplicate mail. Local acceptance does not guarantee final
 delivery. No SMTP client or mail server is included.
 
+Each invocation logs the detected IPv4 address and its quoted source interface,
+then the decision **before** contacting the provider. Update reasons distinguish
+missing confirmed state, changed profile identity, retry after failure, changed
+address, and due refresh. A no-op explicitly says the address is unchanged and
+refresh is not due. For example:
+
+```text
+gateway-dns: interface "en0" detected IPv4 192.0.2.10
+gateway-dns: updating provider: no confirmed state
+gateway-dns: confirmed 192.0.2.10
+```
+
+These operational trace lines go to stderr with the final all-profile results;
+they do not enter persisted mail summaries or change notification triggers. An
+unavailable interface produces only its failure result (no fabricated detected
+address or provider call).
+
 Every error returns a nonzero exit status, even when other profiles succeeded.
-Each profile result is printed once as `<profile name>: <result>`; unavailable
+Each final profile result is printed once as `<profile name>: <result>`; unavailable
 IPv4 diagnostics include the configured interface name. Run-level errors use
 `[error] <reason>`; square brackets cannot occur in a profile name, so this
 prefix is distinct from profile results. Configuration errors identify the quoted

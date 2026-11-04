@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCLIConfigurationFileDiagnostics(t *testing.T) {
@@ -88,6 +89,51 @@ func TestCLIMissingInterfacesReportedOnce(t *testing.T) {
 	}
 }
 
+func TestCLIUpdateDecisionTrace(t *testing.T) {
+	j := newJourney(t)
+	calls := 0
+	fail := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if fail {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		fmt.Fprint(w, "good")
+	}))
+	defer server.Close()
+	// Quoted interface names must remain unambiguous in the trace.
+	base := strings.ReplaceAll(profile("dns", "desec", server.URL), "interface: wan", `interface: 'wan "quoted"'`)
+	j.write(base)
+	check := func(reason, result string, code, wantCalls int) {
+		t.Helper()
+		want := fmt.Sprintf("dns: interface %q detected IPv4 %s\ndns: %s\ndns: %s\n", `wan "quoted"`, j.ip, reason, result)
+		if out := j.run(code); out != want {
+			t.Fatalf("output = %q, want %q", out, want)
+		}
+		if calls != wantCalls {
+			t.Fatalf("provider calls = %d, want %d", calls, wantCalls)
+		}
+	}
+	check("updating provider: no confirmed state", "confirmed "+j.ip, 0, 1)
+	check("skipping update: address unchanged and refresh not due", "unchanged", 0, 1)
+	j.ip = "192.0.2.20"
+	check("updating provider: address changed", "confirmed "+j.ip, 0, 2)
+	j.now = j.now.Add(600 * time.Hour)
+	check("updating provider: refresh due", "confirmed "+j.ip, 0, 3)
+	fail = true
+	j.ip = "192.0.2.30"
+	check("updating provider: address changed", "provider HTTP failure (401)", 1, 4)
+	check("updating provider: retrying previous failure", "provider HTTP failure (401)", 1, 5)
+	fail = false
+	check("updating provider: retrying previous failure", "confirmed "+j.ip, 0, 6)
+	j.write(strings.ReplaceAll(base, "example.invalid", "changed.invalid"))
+	check("updating provider: profile identity changed", "confirmed "+j.ip, 0, 7)
+	if strings.Contains(strings.Join(j.mails, "\n"), "updating provider:") {
+		t.Fatal("operational trace must not enter notification summaries")
+	}
+}
+
 func TestCLIProfileAndMailFailuresReportedOnce(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) }))
 	defer server.Close()
@@ -95,7 +141,7 @@ func TestCLIProfileAndMailFailuresReportedOnce(t *testing.T) {
 	j.write(profile("gateway-dns", "desec", server.URL))
 	j.mailError = true
 	out := j.run(1)
-	want := "gateway-dns: provider HTTP failure (503)\n[error] mail failed\n"
+	want := "gateway-dns: interface \"wan\" detected IPv4 192.0.2.10\ngateway-dns: updating provider: no confirmed state\ngateway-dns: provider HTTP failure (503)\n[error] mail failed\n"
 	if out != want {
 		t.Fatalf("output = %q, want %q", out, want)
 	}

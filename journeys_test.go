@@ -35,7 +35,7 @@ func (j *journey) write(profiles string) {
 	}
 }
 func profile(name, provider, endpoint string) string {
-	return fmt.Sprintf("  - name: %s\n    provider: %s\n    interface: wan\n    target: example.invalid\n    token: synthetic-secret\n    username: synthetic-user\n    password: synthetic-password\n    endpoint: %s\n", name, provider, endpoint)
+	return fmt.Sprintf("  %q:\n    provider: %s\n    interface: wan\n    target: example.invalid\n    token: synthetic-secret\n    username: synthetic-user\n    password: synthetic-password\n    endpoint: %s\n", name, provider, endpoint)
 }
 func (j *journey) run(want int) string {
 	j.t.Helper()
@@ -100,7 +100,7 @@ func TestFailureTransitionsAndIndependentProfiles(t *testing.T) {
 	bad = true
 	j.now = j.now.Add(601 * time.Hour)
 	j.run(1)
-	if len(j.mails) != 2 || !strings.Contains(j.mails[1], "dns:") || !strings.Contains(j.mails[1], "tunnel:") {
+	if len(j.mails) != 2 || !strings.Contains(j.mails[1], "\"dns\":") || !strings.Contains(j.mails[1], "\"tunnel\":") {
 		t.Fatal("expected all-profile failure summary")
 	}
 	dnsCalls := calls["/dns"]

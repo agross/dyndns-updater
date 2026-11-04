@@ -16,16 +16,16 @@ import (
 )
 
 type Config struct {
-	State            string    `yaml:"state"`
-	Refresh          string    `yaml:"refresh"`
-	Timeout          string    `yaml:"timeout"`
-	Sendmail         string    `yaml:"sendmail"`
-	Recipient        string    `yaml:"recipient"`
-	Profiles         []Profile `yaml:"profiles"`
+	State            string   `yaml:"state"`
+	Refresh          string   `yaml:"refresh"`
+	Timeout          string   `yaml:"timeout"`
+	Sendmail         string   `yaml:"sendmail"`
+	Recipient        string   `yaml:"recipient"`
+	Profiles         Profiles `yaml:"profiles"`
 	refresh, timeout time.Duration
 }
 type Profile struct {
-	Name      string `yaml:"name"`
+	Name      string `yaml:"-"`
 	Provider  string `yaml:"provider"`
 	Interface string `yaml:"interface"`
 	Target    string `yaml:"target"`
@@ -35,7 +35,6 @@ type Profile struct {
 	Endpoint  string `yaml:"endpoint"`
 }
 
-var safeName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 var hostName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 
 func loadConfig(path string) (Config, error) {
@@ -51,7 +50,10 @@ func loadConfig(path string) (Config, error) {
 	}
 	decoder := yaml.NewDecoder(bytes.NewReader(content))
 	decoder.KnownFields(true)
-	if decoder.Decode(&c) != nil {
+	if err := decoder.Decode(&c); err != nil {
+		if errors.Is(err, errProfilesMapping) {
+			return c, errProfilesMapping
+		}
 		return c, errors.New("invalid YAML configuration")
 	}
 	var extra any
@@ -72,7 +74,7 @@ func loadConfig(path string) (Config, error) {
 	seen := map[string]bool{}
 	for i := range c.Profiles {
 		p := &c.Profiles[i]
-		if !safeName.MatchString(p.Name) || seen[p.Name] || p.Interface == "" || strings.ContainsAny(p.Interface, "\r\n\x00") || !hostName.MatchString(p.Target) {
+		if !validProfileName(p.Name) || seen[p.Name] || p.Interface == "" || strings.ContainsAny(p.Interface, "\r\n\x00") || !hostName.MatchString(p.Target) {
 			return c, errors.New("invalid profile name, target, or interface")
 		}
 		seen[p.Name] = true

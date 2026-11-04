@@ -121,12 +121,12 @@ func update(c Config, d dependencies, out io.Writer) error {
 		current := old
 		ip, e := d.address(p.Interface)
 		if parsed := net.ParseIP(ip); e != nil || parsed == nil || parsed.To4() == nil || parsed.IsUnspecified() || parsed.IsMulticast() {
-			message := fmt.Sprintf("%s: interface %q IPv4 unavailable", p.Name, p.Interface)
+			message := fmt.Sprintf("%s: interface %q IPv4 unavailable", renderProfileName(p.Name), p.Interface)
 			results = append(results, message)
 			failures = append(failures, errors.New(message))
 			continue
 		}
-		fmt.Fprintf(out, "%s: interface %q detected IPv4 %s\n", p.Name, p.Interface, ip)
+		fmt.Fprintf(out, "%s: interface %q detected IPv4 %s\n", renderProfileName(p.Name), p.Interface, ip)
 		reason := ""
 		switch {
 		case s.Profiles[p.Name].Identity != "" && s.Profiles[p.Name].Identity != id:
@@ -144,12 +144,12 @@ func update(c Config, d dependencies, out io.Writer) error {
 		if reason != "" {
 			// Emit before the request so a slow provider does not hide the decision.
 			// Keep operational traces out of durable notification summaries.
-			fmt.Fprintf(out, "%s: updating provider: %s\n", p.Name, reason)
+			fmt.Fprintf(out, "%s: updating provider: %s\n", renderProfileName(p.Name), reason)
 			e = providerUpdate(c, p, ip)
 			if e != nil {
 				current.Failing = true
 				status = e.Error()
-				failures = append(failures, fmt.Errorf("%s: %s", p.Name, status))
+				failures = append(failures, fmt.Errorf("%s: %s", renderProfileName(p.Name), status))
 				if !old.Failing {
 					s.Dirty = true
 				}
@@ -169,9 +169,9 @@ func update(c Config, d dependencies, out io.Writer) error {
 				return errors.Join(append(failures, e)...)
 			}
 		} else {
-			fmt.Fprintf(out, "%s: skipping update: address unchanged and refresh not due\n", p.Name)
+			fmt.Fprintf(out, "%s: skipping update: address unchanged and refresh not due\n", renderProfileName(p.Name))
 		}
-		results = append(results, p.Name+": "+status)
+		results = append(results, renderProfileName(p.Name)+": "+status)
 	}
 	summary := strings.Join(results, "\n") + "\n"
 	fmt.Fprint(out, summary)

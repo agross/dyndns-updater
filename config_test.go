@@ -23,7 +23,7 @@ func TestConfigurationValidationAtCLI(t *testing.T) {
 		strings.Replace(base, "provider: desec", "provider: unsupported", 1),
 		strings.Replace(base, "token: synthetic-secret", "token: ''", 1),
 		strings.Replace(base, "target: example.invalid", "target: 'invalid,target'", 1),
-		strings.Replace(base, "name: dns", "name: '-bad'", 1),
+		strings.Replace(base, `"dns":`, `"":`, 1),
 		base + "refresh: 1h\nrefresh: 2h\n",
 		base + strings.Repeat(" ", 1<<20),
 	}

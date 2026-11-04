@@ -85,9 +85,9 @@ address, and due refresh. A no-op explicitly says the address is unchanged and
 refresh is not due. For example:
 
 ```text
-gateway-dns: interface "en0" detected IPv4 192.0.2.10
-gateway-dns: updating provider: no confirmed state
-gateway-dns: confirmed 192.0.2.10
+"gateway-dns": interface "en0" detected IPv4 192.0.2.10
+"gateway-dns": updating provider: no confirmed state
+"gateway-dns": confirmed 192.0.2.10
 ```
 
 These operational trace lines go to stderr with the final all-profile results;
@@ -96,10 +96,10 @@ unavailable interface produces only its failure result (no fabricated detected
 address or provider call).
 
 Every error returns a nonzero exit status, even when other profiles succeeded.
-Each final profile result is printed once as `<profile name>: <result>`; unavailable
+Each final profile result is printed once as `"<escaped profile name>": <result>`; unavailable
 IPv4 diagnostics include the configured interface name. Run-level errors use
-`[error] <reason>`; square brackets cannot occur in a profile name, so this
-prefix is distinct from profile results. Configuration errors identify the quoted
+`[error] <reason>`; profile names are always double-quoted and escaped, so this
+unquoted prefix is distinct even from a profile named `[error]`. Configuration errors identify the quoted
 attempted filename (including the default path when `--config` is omitted), without
 including configuration contents or raw parser errors.
 State-lock open errors identify the state directory that must exist and be writable.
@@ -108,6 +108,54 @@ both configuration and state: state includes operational addresses and mail cont
 Configuration is limited to 1 MiB and state to 8 MiB. A persistent mail outage
 with many changes can fill the pending-summary backlog; an oversized state write
 fails without replacing the previous state and requires operator attention.
+
+### Profile names and migration
+
+`profiles` is a YAML mapping keyed by each profile's name, not a list. Keys must
+be nonempty strings. Names may contain spaces, punctuation, quotes, backslashes,
+and ordinary Unicode text. Quote YAML keys that would otherwise be numbers,
+booleans, null, or YAML syntax (for example `"17"`, `"true"`, or `"Home: DNS"`).
+Unicode control characters, format controls (including bidi overrides), and
+line/paragraph separators are rejected. Unknown settings and a separate `name`
+field are rejected, as are duplicate decoded names, even with different quoting.
+
+The exact decoded string identifies state: names are not trimmed, case-folded,
+or Unicode-normalized. `Home DNS` and `"Home DNS"` identify the same profile;
+`" Home DNS"` and `"home DNS"` do not. Profiles and newly generated summaries use
+ascending decoded-name order (case-sensitive Unicode/code-point order), replacing
+list order. Names are double-quoted and escaped in every log/result/summary, never
+used as mail headers. Credentials and raw parser diagnostics are not echoed.
+
+Convert each former list entry's `name` into its mapping key and remove the
+`name` field and list dash. For example, replace:
+
+```yaml
+profiles:
+  - name: gateway-dns
+    provider: desec
+    # remaining settings...
+```
+
+with:
+
+```yaml
+profiles:
+  gateway-dns:
+    provider: desec
+    # same remaining settings...
+```
+
+The former list syntax now fails with a mapping/migration diagnostic; no automatic
+conversion is performed. Existing version-1 state needs **no conversion**: the same
+decoded name and provider/target/interface/endpoint identity reuse confirmed state.
+Changing that identity still forces an update; credential-only rotation does not.
+Already pending notifications retain their original order and content (including
+legacy unquoted names). State names and pending summaries are validated before any
+provider or mail action. Pending bodies must match the current or legacy generated
+summary grammar; arbitrary text, unsafe names, or malformed content fail safely
+without replacing the state file. Preserve that file as evidence and investigate
+rather than clearing the queue blindly. State is not authenticated: keep it private,
+as validation cannot detect a tampered but otherwise well-formed result.
 
 ## Scheduling (examples, not an automatic deployment)
 

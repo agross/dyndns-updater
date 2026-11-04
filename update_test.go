@@ -24,7 +24,7 @@ func TestUpdateJourney(t *testing.T) {
 	defer server.Close()
 	dir := t.TempDir()
 	cfg := filepath.Join(dir, "config.yaml")
-	text := fmt.Sprintf("state: %s\nrefresh: 600h\nprofiles:\n  - name: dns\n    provider: desec\n    interface: wan\n    target: example.invalid\n    token: synthetic-secret\n    endpoint: %s\n", filepath.Join(dir, "state.json"), server.URL)
+	text := fmt.Sprintf("state: %s\nrefresh: 600h\nprofiles:\n  dns:\n    provider: desec\n    interface: wan\n    target: example.invalid\n    token: synthetic-secret\n    endpoint: %s\n", filepath.Join(dir, "state.json"), server.URL)
 	if err := os.WriteFile(cfg, []byte(text), 0600); err != nil {
 		t.Fatal(err)
 	}

@@ -12,6 +12,29 @@ For workflow changes, run `actionlint .github/workflows/*.yml` and `git diff --c
 
 For PR artifacts, exercise the workflow's build commands for Linux and macOS on amd64 and arm64, verify `checksums.txt`, extract the Linux amd64 archive on a matching host, and run its `--help`. On GitHub, confirm exactly one `pull_request` CI run for the current head, no feature-branch `push` CI run, and exactly four separately downloadable artifacts clearly named for Linux amd64, Linux arm64, macOS amd64, and macOS arm64. Download each artifact and confirm it contains only the matching archive and a `checksums.txt` that verifies that archive independently. Verify every archive's executable mode and run the extracted Linux amd64 `--help` on a matching host. Confirm the artifact names and archive filenames use Git's short abbreviation of the run's checked-out merge SHA (`git rev-parse --short HEAD`, distinct from the PR head; length is not fixed), matching the build step's `short_sha` output, and retain the 14-day expiry. A `main` push cannot be exercised until a human merges; check its trigger configuration without pushing to `main`. These checks do not prove runtime compatibility on every target. See the [artifact instructions](README.md#try-a-pull-request-build).
 
+## Mapping profile-name acceptance (#17)
+
+- `TestCLIMappingNames` checks exact CLI output, provider call counts, decoded
+  names in state/mail, and unchanged identity across quoted/unquoted YAML keys.
+- `TestCLIRejectUnsafeMappingNames` rejects non-string/empty/control/format/line
+  separator keys, duplicate decoded names, unknown fields, a separate `name`, and
+  legacy lists before provider/mail activity or state creation.
+- `TestCLISafeNameRenderingAndOrder` asserts sorted provider requests, exact safe
+  summary rendering of punctuation/escapes, independent outcomes, and retry.
+- `TestCLIExactDecodedNameIdentity` covers spaces, numeric/boolean-looking string
+  names, case/whitespace/Unicode distinctions, identity changes, refresh, and address
+  changes without live providers.
+- `TestCLILegacyStateAndPendingMail` reuses a pre-mapping version-1 state fixture
+  without provider calls and preserves pending content/order across mail failure.
+- `TestCLIUnsafeStatePreserved` rejects unsafe state names and pending content,
+  asserts no provider/mail activity, and compares original state bytes afterward.
+- `TestBuiltCLIMappingNameAndFakeMail` builds and runs the real binary against a
+  local HTTP service and executable fake sendmail, asserting exact output, full
+  mail content, persisted names, no-op reuse, and rejection without side effects.
+- Existing process-kill, concurrency, checkpoint, notification retry, provider
+  contract, diagnostic, and journey tests now use mapping configuration and quoted
+  output. They continue to exercise the same durability/delivery boundaries.
+
 ## Acceptance evidence
 - `TestCLIHelp` builds and runs CLI help.
 - `TestCLIConfigurationFileDiagnostics` checks exact output and nonzero exits for

@@ -51,8 +51,10 @@ func TestCLIExactDecodedNameIdentity(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; fmt.Fprint(w, "good") }))
 	defer srv.Close()
 	names := []string{"Home DNS", " Home DNS", "home DNS", "café", "cafe\u0301", " ", "17", "true"}
+	configured := ""
 	for _, name := range names {
-		j.write(namedProfile(strconv.Quote(name), srv.URL))
+		configured += namedProfile(strconv.Quote(name), srv.URL)
+		j.write(configured)
 		j.run(0)
 	}
 	if calls != len(names) || len(j.state().Profiles) != len(names) {

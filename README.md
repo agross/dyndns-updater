@@ -41,6 +41,17 @@ The state file records confirmed addresses, timestamps, hashed profile identity,
 provider failure state, and pending notification content, never credentials.
 Provider, target, interface, or endpoint changes invalidate a profile's old state;
 credential-only changes do not. A failed update retains its last confirmed address.
+After loading a valid configuration and state, each run removes confirmations for
+names absent from the configuration while holding the state lock. Cleanup uses
+the existing atomic writes even when all retained profiles skip or report errors;
+configured names retain their state, including during interface/provider failures.
+A renamed profile, or a removed name restored after a run persisted its absence,
+requires a fresh successful provider update even with the same identity/address
+before refresh is due. Removing and restoring a name between invocations records
+no absence. Cleanup does not delete provider-side records or itself trigger mail:
+queued summaries mentioning old names remain intact and retry in order, and
+interrupted-run notification intent generates a summary of the current configuration.
+Invalid configuration or state prevents cleanup and leaves the state untouched.
 Removing the state file forces fresh updates. Corrupt or unreadable state causes
 an error and is preserved, not silently reset. Keep the directory private and use
 a local filesystem supporting advisory locks, atomic rename, and fsync.

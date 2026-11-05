@@ -110,6 +110,19 @@ func update(c Config, d dependencies, out io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// Reconcile only after validation and under the state lock. Cleanup is not a
+	// notification event: preserve pending summaries and interrupted-run intent.
+	configured := make(map[string]struct{}, len(c.Profiles))
+	for _, p := range c.Profiles {
+		configured[p.Name] = struct{}{}
+	}
+	for name := range s.Profiles {
+		if _, ok := configured[name]; !ok {
+			delete(s.Profiles, name)
+		}
+	}
+	// Existing checkpoints and the final atomic write persist removals even when
+	// every configured profile skips its update or has no available interface.
 	results := []string{}
 	var failures []error
 	for _, p := range c.Profiles {

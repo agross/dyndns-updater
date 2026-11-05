@@ -12,6 +12,28 @@ For workflow changes, run `actionlint .github/workflows/*.yml` and `git diff --c
 
 For PR artifacts, exercise the workflow's build commands for Linux and macOS on amd64 and arm64, verify `checksums.txt`, extract the Linux amd64 archive on a matching host, and run its `--help`. On GitHub, confirm exactly one `pull_request` CI run for the current head, no feature-branch `push` CI run, and exactly four separately downloadable artifacts clearly named for Linux amd64, Linux arm64, macOS amd64, and macOS arm64. Download each artifact and confirm it contains only the matching archive and a `checksums.txt` that verifies that archive independently. Verify every archive's executable mode and run the extracted Linux amd64 `--help` on a matching host. Confirm the artifact names and archive filenames use Git's short abbreviation of the run's checked-out merge SHA (`git rev-parse --short HEAD`, distinct from the PR head; length is not fixed), matching the build step's `short_sha` output, and retain the 14-day expiry. A `main` push cannot be exercised until a human merges; check its trigger configuration without pushing to `main`. These checks do not prove runtime compatibility on every target. See the [artifact instructions](README.md#try-a-pull-request-build).
 
+## Removed-profile state acceptance (#15)
+
+- `TestCLIProfileCleanup` verifies cleanup on no-op and unavailable-interface
+  runs, retained confirmations, independent provider failure/success, no cleanup
+  notification, and a fresh update when the same name/identity/address is restored.
+- `TestCLIRenamedProfileRequiresSuccess` verifies old-name removal, an attempted
+  update under the new name, no confirmation on failure, and successful retry.
+- `TestCLICleanupPreservesQueuedMailAndIntent` preserves queued bodies and order
+  (including removed names) through mail failure, and recovers existing dirty
+  intent into a current-configuration summary without redundant provider calls.
+- `TestCLICleanupRejectsInvalidInputsWithoutWrites` compares state bytes after
+  invalid configuration and corrupt state, with no extra provider/mail activity.
+- `TestBuiltCLICleanupRetriesRemovedProfileMail` uses the built binary, local HTTP
+  provider, and executable fake sendmail: removal persists during a no-op, queued
+  mail is retried byte-for-byte once, and a subsequent invocation adds no mail.
+- `TestInterruptedLaterProfileKeepsEarlierSuccess` now also kills the real process
+  after a confirmation checkpoint, removes that confirmed profile, and restarts.
+  It verifies cleanup, OS lock release, provider counts, and recovery of notification
+  intent into a summary containing only the current configuration.
+- Exact-name identity tests retain their names in configuration while testing
+  distinct identities; absent names are no longer expected to accumulate in state.
+
 ## Mapping profile-name acceptance (#17)
 
 - `TestCLIMappingNames` checks exact CLI output, provider call counts, decoded

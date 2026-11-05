@@ -15,10 +15,11 @@ import (
 )
 
 type profileState struct {
-	Identity string    `json:"identity"`
-	Address  string    `json:"address"`
-	Updated  time.Time `json:"updated"`
-	Failing  bool      `json:"failing"`
+	Identity string      `json:"identity"`
+	Address  string      `json:"address"`
+	Updated  time.Time   `json:"updated"`
+	Failing  bool        `json:"failing"`
+	Retry    *retryState `json:"retry,omitempty"`
 }
 type diskState struct {
 	Version  int                     `json:"version"`
@@ -72,6 +73,9 @@ func readState(path string) (diskState, error) {
 		return s, errors.New("invalid state; preserved")
 	}
 	for name, p := range s.Profiles {
+		if !validRetry(p.Retry, p) {
+			return s, errors.New("invalid retry state; preserved")
+		}
 		if !validProfileName(name) {
 			return s, errors.New("invalid profile state; preserved")
 		}

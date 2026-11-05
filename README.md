@@ -30,7 +30,9 @@ configure a dedicated interface if selection matters. No public address discover
 or custom DNS fallback is included (tracked in #3 and #4).
 
 Unchanged successful profiles are skipped until refresh is due. Failed updates
-are retried on every later invocation, independently of other profiles. HTTP 200
+are retried on later invocations unless a durable provider retry restriction applies
+(see below). Other profiles continue independently, except deSEC profiles share
+a conservative rate-limit pause. HTTP 200
 alone is not success: provider-specific response validation is required. See
 [provider contracts and limits](docs/provider-contracts.md) for verified request
 and response details, endpoint overrides, and the HE refresh caveat.
@@ -40,7 +42,11 @@ and response details, endpoint overrides, and the HE refresh caveat.
 The state file records confirmed addresses, timestamps, hashed profile identity,
 provider failure state, and pending notification content, never credentials.
 Provider, target, interface, or endpoint changes invalidate a profile's old state;
-credential-only changes do not. A failed update retains its last confirmed address.
+credential-only changes do not invalidate confirmed success, but release intervention
+restrictions. A failed update retains its last confirmed address, **except HE
+`abuse`**: per the owner decision in #16, the attempted address and timestamp advance
+as assumed accepted while the profile remains failing. This is not a strict
+provider confirmation.
 After loading a valid configuration and state, each run removes confirmations for
 names absent from the configuration while holding the state lock. Cleanup uses
 the existing atomic writes even when all retained profiles skip or report errors;
@@ -52,7 +58,10 @@ no absence. Cleanup does not delete provider-side records or itself trigger mail
 queued summaries mentioning old names remain intact and retry in order, and
 interrupted-run notification intent generates a summary of the current configuration.
 Invalid configuration or state prevents cleanup and leaves the state untouched.
-Removing the state file forces fresh updates. Corrupt or unreadable state causes
+Removing the state file forces fresh updates and removes all retry restrictions;
+do not use this to defeat provider throttling. Removing a profile removes its retry
+state too; shared deSEC deadlines already copied to other profiles remain.
+Corrupt or unreadable state causes
 an error and is preserved, not silently reset. Keep the directory private and use
 a local filesystem supporting advisory locks, atomic rename, and fsync.
 
@@ -69,7 +78,43 @@ synced along with its parent directory, and checkpointed after each attempted
 provider update so an independent success survives interruption before a later
 profile finishes. A crash after provider acceptance but before state persistence
 can cause another safe update on restart. A new address appearing during an update
-is detected by the next run; only the address actually confirmed is recorded.
+is detected by the next run; only the requested address is recorded on strict
+confirmation (or the explicit HE `abuse` assumption).
+
+### Provider retry restrictions
+
+- deSEC HTTP 401, 400, and 404 stop requests until the token or profile identity
+  (provider, target, interface, endpoint) changes, or that profile's state is
+  explicitly removed. Diagnostics identify authentication, hostname, or domain
+  correction respectively. An address change or elapsed refresh alone does not
+  release these intervention restrictions. Fixes made only on the provider side
+  require explicit state removal to retry.
+- deSEC HTTP 429 pauses pending deSEC updates until the persisted UTC deadline.
+  Prefer one valid `Retry-After` (nonnegative integer seconds or HTTP date);
+  missing, duplicate, malformed, or overflowing values use the owner-selected
+  two-minute fallback. Zero/past deadlines permit the next invocation to retry.
+  Deadlines are measured on receipt, not process start. Because accounts cannot
+  be inferred reliably from tokens or domains, **all deSEC profiles sharing a state
+  file share the latest active deadline**, even across tokens/endpoints. This can
+  delay unrelated accounts conservatively. Already-successful no-op profiles
+  remain successful. Token/target changes do not bypass a surviving shared pause.
+- HE HTTP 200 with exactly `abuse` (surrounding whitespace allowed) reports failure
+  and assumes the requested address was accepted. Same-address repeats stay
+  suppressed until refresh is due or credentials/profile identity change.
+  An address change retries immediately. The existing configurable refresh policy
+  remains; review the HE production caveat in the provider contracts.
+- Other responses and transport failures remain credential-safe failures, retried
+  on the next invocation without an invented provider-specific delay.
+
+Suppression returns nonzero with an actionable reason (and deadline for 429),
+without sending an update. Restriction state survives restarts under the existing
+lock and atomic checkpoints. Intervention/HE restrictions store a random salt and
+one-way SHA-256 fingerprint of relevant configuration and credentials, never the
+credentials or a reversible encoding. Keep state private: the fingerprint is not
+an encrypted credential vault and weak credentials remain susceptible to offline
+guessing. Existing version-1 state remains readable without new fields; older
+binaries do not understand the added retry fields and safely reject that state.
+See [the response/retry matrix and sources](docs/provider-contracts.md).
 
 ### Notifications and exits
 

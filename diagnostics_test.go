@@ -96,7 +96,7 @@ func TestCLIUpdateDecisionTrace(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
 		if fail {
-			w.WriteHeader(http.StatusUnauthorized)
+			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 		fmt.Fprint(w, "good")
@@ -123,8 +123,8 @@ func TestCLIUpdateDecisionTrace(t *testing.T) {
 	check("updating provider: refresh due", "confirmed "+j.ip, 0, 3)
 	fail = true
 	j.ip = "192.0.2.30"
-	check("updating provider: address changed", "provider HTTP failure (401)", 1, 4)
-	check("updating provider: retrying previous failure", "provider HTTP failure (401)", 1, 5)
+	check("updating provider: address changed", "provider HTTP failure (500)", 1, 4)
+	check("updating provider: retrying previous failure", "provider HTTP failure (500)", 1, 5)
 	fail = false
 	check("updating provider: retrying previous failure", "confirmed "+j.ip, 0, 6)
 	j.write(strings.ReplaceAll(base, "example.invalid", "changed.invalid"))

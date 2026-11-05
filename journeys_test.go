@@ -256,7 +256,11 @@ func TestRejectedResponsesAndTimeout(t *testing.T) {
 			j.write(profile("dns", tc.provider, srv.URL))
 			j.run(1)
 			j.run(1)
-			if calls != 2 || j.state().Profiles["dns"].Address != "" || len(j.mails) != 1 {
+			wantCalls := 2
+			if tc.provider == "desec" && tc.status == 401 {
+				wantCalls = 1
+			}
+			if calls != wantCalls || j.state().Profiles["dns"].Address != "" || len(j.mails) != 1 {
 				t.Fatal("rejection recorded success or failed retry/dedup")
 			}
 		})

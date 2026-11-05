@@ -57,6 +57,40 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
   contract, diagnostic, and journey tests now use mapping configuration and quoted
   output. They continue to exercise the same durability/delivery boundaries.
 
+## Provider retry acceptance (#16)
+
+- `TestCLIDeSECRetryDeadline` checks missing/invalid/overflowing/valid delta/date
+  Retry-After, failure and suppressed exits, deadline persistence across CLI runs,
+  retry at the boundary, IPv6 preservation, queued-mail retry and recovery mail.
+- `TestCLIInterventionRecovery` independently tests HTTP 400/401/404 after a known
+  confirmation, retention of the previous address, suppression despite elapsed
+  refresh, no repeated failure mail, token/target/interface/endpoint corrections,
+  state removal, recovery, and exclusion of secrets/untrusted text from state/mail.
+- `TestCLISharedDeSECRateLimit` checks a longer preferred deadline, distinct-token
+  sharing, no request for a second deSEC profile, independent HE success, source
+  profile removal, configuration/credential changes not bypassing a surviving wait,
+  unchanged-failure mail deduplication, and deadline recovery.
+- `TestCLIHEAbuseAcceptedButFailing` checks the owner-requested address advancement
+  while failing, same-address suppression across CLI runs and address-change recovery.
+  `TestCLIHEAbuseResumeConditions` checks exact refresh and credential/identity
+  correction boundaries. `TestCLIUnverifiedHEErrorsAreNotAssumedAccepted` rejects
+  unknown tokens, misleading abuse/success, oversized bodies and address mismatch
+  without inventing HE cooldowns or accepting unconfirmed addresses.
+- `TestCLIRetryAfterEdges` checks zero, short valid delays, past HTTP dates, signed/
+  fractional/duplicate headers, no early retry, and exact-boundary recovery.
+- `TestCLIInvalidRetryStatePreserved` rejects invalid retry codes/fields and compares
+  original bytes with no provider request. Existing legacy-state, corrupt/unreadable
+  state, process-kill, atomic checkpoint, concurrency and mail tests still run.
+- `TestBuiltCLIRetryRestrictionsSurviveRestart` builds the actual executable,
+  exercises separate invocations with OS loopback and executable fake sendmail,
+  proves one auth request and one failure notification across restart, then rotates
+  credentials and verifies strict confirmation/recovery without credential leaks.
+
+The generic retry trace test now uses HTTP 500; deSEC 401 has its own intervention
+assertions rather than expecting an unconditional retry. No checks were weakened.
+All tests are offline; provider response fixtures follow the source matrix, with
+HE abuse and deSEC fallback explicitly attributed to the owner's issue decisions.
+
 ## Acceptance evidence
 - `TestCLIHelp` builds and runs CLI help.
 - `TestCLIConfigurationFileDiagnostics` checks exact output and nonzero exits for

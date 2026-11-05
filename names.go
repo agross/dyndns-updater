@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -120,6 +121,15 @@ func validPendingSummary(summary string) bool {
 }
 
 func validSummaryStatus(status string) bool {
+	for _, kind := range []string{"desec-auth", "desec-hostname", "desec-target", "he-abuse"} {
+		if status == retryMessage(kind, time.Time{}) {
+			return true
+		}
+	}
+	if value, ok := strings.CutPrefix(status, "deSEC rate limited; retry at "); ok {
+		deadline, err := time.Parse(time.RFC3339, value)
+		return err == nil && deadline.UTC().Format(time.RFC3339) == value
+	}
 	switch status {
 	case "unchanged", "invalid provider request", "invalid provider response", "provider transport failure (DNS, connection, or TLS)", "provider rejected update or returned malformed success":
 		return true

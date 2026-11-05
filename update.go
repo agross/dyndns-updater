@@ -45,7 +45,7 @@ func identity(p Profile) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
 }
-func providerUpdate(c Config, p Profile, ip string) error {
+func providerUpdate(c Config, p Profile, ip string, now func() time.Time) error {
 	u, _ := url.Parse(p.Endpoint)
 	q := u.Query()
 	q.Set("hostname", p.Target)
@@ -72,6 +72,18 @@ func providerUpdate(c Config, p Profile, ip string) error {
 		return errors.New("provider transport failure (DNS, connection, or TLS)")
 	}
 	defer resp.Body.Close()
+	if p.Provider == "desec" {
+		switch resp.StatusCode {
+		case 401:
+			return providerFailure{kind: "desec-auth"}
+		case 400:
+			return providerFailure{kind: "desec-hostname"}
+		case 404:
+			return providerFailure{kind: "desec-target"}
+		case 429:
+			return providerFailure{kind: "desec-rate", until: retryDeadline(resp.Header, now())}
+		}
+	}
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("provider HTTP failure (%d)", resp.StatusCode)
 	}
@@ -80,6 +92,9 @@ func providerUpdate(c Config, p Profile, ip string) error {
 		return errors.New("invalid provider response")
 	}
 	fields := strings.Fields(string(body))
+	if p.Provider == "tunnelbroker" && strings.TrimSpace(string(body)) == "abuse" {
+		return providerFailure{kind: "he-abuse"}
+	}
 	if p.Provider == "desec" {
 		if len(fields) == 1 && fields[0] == "good" {
 			return nil
@@ -154,11 +169,36 @@ func update(c Config, d dependencies, out io.Writer) error {
 			reason = "refresh due"
 		}
 		status := "unchanged"
+		blocked := blockedRetry(s, p, old, ip, d.now(), c.refresh)
+		if blocked != nil && reason != "" {
+			reason = "retry restricted"
+		}
 		if reason != "" {
 			// Emit before the request so a slow provider does not hide the decision.
 			// Keep operational traces out of durable notification summaries.
-			fmt.Fprintf(out, "%s: updating provider: %s\n", renderProfileName(p.Name), reason)
-			e = providerUpdate(c, p, ip)
+			current.Retry = nil
+			if blocked != nil {
+				fmt.Fprintf(out, "%s: skipping update: retry restricted\n", renderProfileName(p.Name))
+				current.Retry = blocked
+				e = providerFailure{kind: blocked.Kind, until: blocked.Until}
+			} else {
+				fmt.Fprintf(out, "%s: updating provider: %s\n", renderProfileName(p.Name), reason)
+				e = providerUpdate(c, p, ip, d.now)
+				var failure providerFailure
+				if errors.As(e, &failure) {
+					var retryErr error
+					current.Retry, retryErr = newRetry(p, failure)
+					if retryErr != nil {
+						return retryErr
+					}
+					if failure.kind == "he-abuse" {
+						// Owner decision #16 explicitly treats abuse as accepted,
+						// while retaining failure exit/notification semantics.
+						current.Address = ip
+						current.Updated = d.now().UTC()
+					}
+				}
+			}
 			if e != nil {
 				current.Failing = true
 				status = e.Error()

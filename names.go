@@ -79,11 +79,10 @@ func validProfileName(name string) bool {
 
 func renderProfileName(name string) string { return strconv.Quote(name) }
 
-var legacyProfileName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 var httpFailureStatus = regexp.MustCompile(`^provider HTTP failure \([1-9][0-9][0-9]\)$`)
 
 // Pending messages are untrusted durable input, not arbitrary mail bodies. Accept
-// only the summary grammar emitted by this version or the pre-mapping version.
+// only generated status grammar with safe names, including older quoted and legacy names.
 // Validate without rewriting: existing queue order/content and at-least-once
 // acknowledgements are preserved. Invalid content blocks the run before updates.
 func validPendingSummary(summary string) bool {
@@ -93,31 +92,30 @@ func validPendingSummary(summary string) bool {
 	lines := strings.Split(strings.TrimSuffix(summary, "\n"), "\n")
 	seen := map[string]bool{}
 	for _, line := range lines {
-		var name, rest string
-		if strings.HasPrefix(line, `"`) {
-			quoted, err := strconv.QuotedPrefix(line)
-			if err != nil {
-				return false
-			}
-			name, err = strconv.Unquote(quoted)
-			if err != nil || quoted != renderProfileName(name) {
-				return false
-			}
-			rest = strings.TrimPrefix(line, quoted)
-		} else {
-			var ok bool
-			name, rest, ok = strings.Cut(line, ": ")
-			if !ok || !legacyProfileName.MatchString(name) {
-				return false
-			}
-			rest = ": " + rest
-		}
-		if !validProfileName(name) || seen[name] || !strings.HasPrefix(rest, ": ") || !validSummaryStatus(strings.TrimPrefix(rest, ": ")) {
+		name, ok := pendingSummaryName(line)
+		if !ok || seen[name] {
 			return false
 		}
 		seen[name] = true
 	}
 	return true
+}
+
+// Names are literal visible text. Old quoted names are also safe literal text;
+// do not decode their escapes or conflate them with a different raw name.
+func pendingSummaryName(line string) (string, bool) {
+	// Inspect complete status suffixes, not the first delimiter in a name.
+	for end := len(line); end > 0; {
+		i := strings.LastIndex(line[:end], ": ")
+		if i < 0 {
+			break
+		}
+		if validSummaryStatus(line[i+2:]) && validProfileName(line[:i]) {
+			return line[:i], true
+		}
+		end = i
+	}
+	return "", false
 }
 
 func validSummaryStatus(status string) bool {

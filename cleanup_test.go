@@ -132,7 +132,7 @@ func TestCLICleanupPreservesQueuedMailAndIntent(t *testing.T) {
 	j.write(keep)
 	j.run(1)
 	s = j.state()
-	want := append(queued, "\"keep\": unchanged\n")
+	want := append(queued, "keep: unchanged\n")
 	if len(s.Profiles) != 1 || s.Dirty || !reflect.DeepEqual(s.Pending, want) || calls != 2 {
 		t.Fatal("cleanup altered queue/intent", s)
 	}

@@ -101,6 +101,7 @@ func TestBuiltCLIMappingNameAndFakeMail(t *testing.T) {
 	if err := os.WriteFile(cfg, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
+	started := time.Now().UTC().Truncate(time.Second)
 	for i := 0; i < 2; i++ {
 		b, err = exec.Command(bin, "--config", cfg).CombinedOutput()
 		if err != nil {
@@ -120,7 +121,15 @@ func TestBuiltCLIMappingNameAndFakeMail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantMail := "To: root\nSubject: dyndns-updater profile changes\nContent-Type: text/plain; charset=UTF-8\n\n" + name + ": confirmed 127.0.0.1\n"
+	headers := "To: root\nSubject: dyndns-updater profile changes\nContent-Type: text/plain; charset=UTF-8\n\n"
+	body := strings.TrimPrefix(string(b), headers)
+	line, _, ok := strings.Cut(body, "\n")
+	value := strings.TrimPrefix(line, "Summary generated at: ")
+	generated, parseErr := time.Parse(time.RFC3339, value)
+	if !ok || parseErr != nil || generated.UTC().Format(time.RFC3339) != value || generated.Before(started) || generated.After(time.Now()) {
+		t.Fatalf("invalid summary generation timestamp: %q", body)
+	}
+	wantMail := headers + line + "\n" + name + ": confirmed 127.0.0.1\n"
 	if string(b) != wantMail || calls.Load() != 1 {
 		t.Fatalf("mail=%q calls=%d", b, calls.Load())
 	}

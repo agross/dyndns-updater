@@ -42,7 +42,8 @@ func TestKilledAfterLocalMailAcceptanceRetries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if calls.Load() != 1 || strings.Count(string(b), "Subject:") != 2 {
+	want := "To: root\nSubject: dyndns-updater profile changes\nContent-Type: text/plain; charset=UTF-8\n\n" + s.Pending[0]
+	if calls.Load() != 1 || string(b) != strings.Repeat(want, 2) || !strings.HasPrefix(s.Pending[0], "Summary generated at: ") {
 		t.Fatal("crash window did not retry accepted mail independently")
 	}
 	s, err = readState(state)

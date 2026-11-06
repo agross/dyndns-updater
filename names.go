@@ -90,6 +90,20 @@ func validPendingSummary(summary string) bool {
 		return false
 	}
 	lines := strings.Split(strings.TrimSuffix(summary, "\n"), "\n")
+	if value, ok := strings.CutPrefix(lines[0], "Summary generated at: "); ok {
+		// A historical profile can have this exact name. Preserve valid old
+		// status lines; otherwise accept only the canonical generated UTC time.
+		if _, legacy := pendingSummaryName(lines[0]); !legacy {
+			generated, err := time.Parse(time.RFC3339, value)
+			if err != nil || generated.UTC().Format(time.RFC3339) != value {
+				return false
+			}
+			lines = lines[1:]
+		}
+	}
+	if len(lines) == 0 {
+		return false
+	}
 	seen := map[string]bool{}
 	for _, line := range lines {
 		name, ok := pendingSummaryName(line)

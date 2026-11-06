@@ -34,6 +34,26 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
 - Exact-name identity tests retain their names in configuration while testing
   distinct identities; absent names are no longer expected to accumulate in state.
 
+## Notification generation timestamps (#24)
+
+- `TestCLINotificationGenerationTime` uses the CLI with controlled non-UTC time,
+  local providers and fake mail to assert the exact UTC body, persisted queue,
+  failed submission attempts, retry bodies and ordered distinct timestamps. It
+  checks reconstructed intent uses restart time, independently timed failure and
+  recovery transitions, no-op suppression, and provider/mail call counts.
+- `TestCLINotificationPendingCompatibility` retries mixed timestamp-free legacy,
+  quoted/current and timestamped bodies byte-for-byte, including a legacy profile
+  named `Summary generated at`, without changing the version-1 state format.
+- `TestCLIRejectMalformedNotificationNames` also rejects invalid/noncanonical time,
+  duplicate/misplaced headers, missing results and injected content before provider
+  or mail activity, comparing original state bytes after rejection.
+- `TestBuiltCLIMappingNameAndFakeMail` checks a real binary timestamp against its
+  execution window and the complete fake-sendmail message.
+  `TestKilledAfterLocalMailAcceptanceRetries` verifies both submissions contain
+  exactly the same persisted timestamped body through the duplicate-mail crash
+  window. Existing trigger, CLI-output, independent-outcome and credential-safety
+  tests remain active; no real DNS or mail is used.
+
 ## Notification name presentation (#22)
 
 - `TestCLINotificationNamesAndRestart` asserts exact unquoted all-profile mail,

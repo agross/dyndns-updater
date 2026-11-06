@@ -126,6 +126,10 @@ while still failing, missing interface, or unchanged interface return. A previou
 queued notification is still retried during an interface outage. Invalid
 configuration does not submit mail.
 
+New notification lines use the exact configured profile name without added quotes,
+for example `Tunnel Broker: confirmed 1.2.3.4`. CLI diagnostics and results remain
+double-quoted and escaped.
+
 Summaries and retry intent are persisted before local sendmail submission. Failed
 submission returns nonzero and is retried later without repeating successful
 provider updates. Pending summaries are delivered in order; after an interrupted
@@ -179,8 +183,9 @@ The exact decoded string identifies state: names are not trimmed, case-folded,
 or Unicode-normalized. `Home DNS` and `"Home DNS"` identify the same profile;
 `" Home DNS"` and `"home DNS"` do not. Profiles and newly generated summaries use
 ascending decoded-name order (case-sensitive Unicode/code-point order), replacing
-list order. Names are double-quoted and escaped in every log/result/summary, never
-used as mail headers. Credentials and raw parser diagnostics are not echoed.
+list order. Names are double-quoted and escaped in CLI logs/results; newly generated
+notification summaries display names literally, never as mail headers. Credentials
+and raw parser diagnostics are not echoed.
 
 Convert each former list entry's `name` into its mapping key and remove the
 `name` field and list dash. For example, replace:
@@ -206,9 +211,14 @@ conversion is performed. Existing version-1 state needs **no conversion**: the s
 decoded name and provider/target/interface/endpoint identity reuse confirmed state.
 Changing that identity still forces an update; credential-only rotation does not.
 Already pending notifications retain their original order and content (including
-legacy unquoted names). State names and pending summaries are validated before any
+older quoted names and legacy unquoted names). State names and pending summaries are validated before any
 provider or mail action. Pending bodies must match the current or legacy generated
-summary grammar; arbitrary text, unsafe names, or malformed content fail safely
+summary status grammar with valid visible names, including names containing `: `
+and literal quotes/backslashes. Escapes in a pending name are not decoded: literal
+`\n` text is safe name text, while actual control characters are rejected. The
+unchanged state format cannot distinguish an old quoted name from a new name
+containing literal quotes; validation does not rewrite either. Arbitrary status
+text, unsafe names, or malformed content fail safely
 without replacing the state file. Preserve that file as evidence and investigate
 rather than clearing the queue blindly. State is not authenticated: keep it private,
 as validation cannot detect a tampered but otherwise well-formed result.

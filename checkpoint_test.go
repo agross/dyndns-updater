@@ -81,7 +81,7 @@ func TestInterruptedLaterProfileKeepsEarlierSuccess(t *testing.T) {
 				t.Fatal("restart discarded independent success")
 			}
 			b, err = os.ReadFile(mail)
-			if err != nil || strings.Contains(string(b), "\"dns\":") == removeConfirmed || !strings.Contains(string(b), "\"second\":") {
+			if err != nil || strings.Contains(string(b), "dns:") == removeConfirmed || !strings.Contains(string(b), "second:") {
 				t.Fatal("restart lost all-profile notification")
 			}
 			s, err = readState(state)

@@ -34,6 +34,22 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
 - Exact-name identity tests retain their names in configuration while testing
   distinct identities; absent names are no longer expected to accumulate in state.
 
+## Notification name presentation (#22)
+
+- `TestCLINotificationNamesAndRestart` asserts exact unquoted all-profile mail,
+  unchanged escaped CLI results, sorted spaces/punctuation/quotes/backslashes/
+  colons/Unicode, distinct quoted and unquoted names, and durable retry after
+  failed submission without repeating providers.
+- `TestCLINotificationPendingCompatibility` delivers old quoted, legacy and new
+  summaries byte-for-byte in queue order across failed mail and restart.
+- `TestCLIRejectMalformedNotificationNames` checks invalid status/address,
+  delimiter-like text, injected lines, controls, empty/duplicate names and state
+  preservation before provider/mail activity.
+- Existing fake-sendmail subprocess, independent failure/recovery, no-op,
+  crash/checkpoint and cleanup journeys retain CLI assertions while expecting
+  literal names only in newly generated mail. Literal backslash escape text is
+  a valid name; the unsafe pending fixture uses an actual control character.
+
 ## Mapping profile-name acceptance (#17)
 
 - `TestCLIMappingNames` checks exact CLI output, provider call counts, decoded

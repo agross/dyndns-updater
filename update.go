@@ -139,6 +139,7 @@ func update(c Config, d dependencies, out io.Writer) error {
 	// Existing checkpoints and the final atomic write persist removals even when
 	// every configured profile skips its update or has no available interface.
 	results := []string{}
+	notifications := []string{}
 	var failures []error
 	for _, p := range c.Profiles {
 		old := s.Profiles[p.Name]
@@ -151,6 +152,7 @@ func update(c Config, d dependencies, out io.Writer) error {
 		if parsed := net.ParseIP(ip); e != nil || parsed == nil || parsed.To4() == nil || parsed.IsUnspecified() || parsed.IsMulticast() {
 			message := fmt.Sprintf("%s: interface %q IPv4 unavailable", renderProfileName(p.Name), p.Interface)
 			results = append(results, message)
+			notifications = append(notifications, fmt.Sprintf("%s: interface %q IPv4 unavailable", p.Name, p.Interface))
 			failures = append(failures, errors.New(message))
 			continue
 		}
@@ -225,6 +227,7 @@ func update(c Config, d dependencies, out io.Writer) error {
 			fmt.Fprintf(out, "%s: skipping update: address unchanged and refresh not due\n", renderProfileName(p.Name))
 		}
 		results = append(results, renderProfileName(p.Name)+": "+status)
+		notifications = append(notifications, p.Name+": "+status)
 	}
 	summary := strings.Join(results, "\n") + "\n"
 	fmt.Fprint(out, summary)
@@ -234,7 +237,7 @@ func update(c Config, d dependencies, out io.Writer) error {
 		failures[i] = reportedError{failure}
 	}
 	if s.Dirty {
-		s.Pending = append(s.Pending, summary)
+		s.Pending = append(s.Pending, strings.Join(notifications, "\n")+"\n")
 		s.Dirty = false
 	}
 	// Persist notification content before submission. Successful local acceptance

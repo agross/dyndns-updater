@@ -100,7 +100,7 @@ func TestFailureTransitionsAndIndependentProfiles(t *testing.T) {
 	bad = true
 	j.now = j.now.Add(601 * time.Hour)
 	j.run(1)
-	if len(j.mails) != 2 || !strings.Contains(j.mails[1], "\"dns\":") || !strings.Contains(j.mails[1], "\"tunnel\":") {
+	if len(j.mails) != 2 || !strings.Contains(j.mails[1], "dns:") || !strings.Contains(j.mails[1], "tunnel:") {
 		t.Fatal("expected all-profile failure summary")
 	}
 	dnsCalls := calls["/dns"]

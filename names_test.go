@@ -26,7 +26,7 @@ func TestCLIMappingNames(t *testing.T) {
 	if got := j.run(0); got != want {
 		t.Fatalf("output=%q want=%q", got, want)
 	}
-	if j.state().Profiles[name].Address != j.ip || len(j.mails) != 1 || j.mails[0] != "\"Home DNS\": confirmed 192.0.2.10\n" {
+	if j.state().Profiles[name].Address != j.ip || len(j.mails) != 1 || j.mails[0] != "Home DNS: confirmed 192.0.2.10\n" {
 		t.Fatal("name not retained across state and notification")
 	}
 	j.write(namedProfile(strconv.Quote(name), srv.URL))
@@ -88,7 +88,7 @@ func TestCLISafeNameRenderingAndOrder(t *testing.T) {
 	j.write(namedProfile(strconv.Quote(names[0]), srv.URL+"/bad") + namedProfile(strconv.Quote(names[1]), srv.URL+"/good") + namedProfile(strconv.Quote(names[2]), srv.URL+"/first"))
 	out := j.run(1)
 	summary := strconv.Quote(names[2]) + ": confirmed 192.0.2.10\n" + strconv.Quote(names[1]) + ": confirmed 192.0.2.10\n" + strconv.Quote(names[0]) + ": provider rejected update or returned malformed success\n"
-	if !strings.HasSuffix(out, summary) || len(j.mails) != 1 || j.mails[0] != summary || strings.Join(requests, ",") != "/first,/good,/bad" {
+	if !strings.HasSuffix(out, summary) || len(j.mails) != 1 || j.mails[0] != names[2]+": confirmed 192.0.2.10\n"+names[1]+": confirmed 192.0.2.10\n"+names[0]+": provider rejected update or returned malformed success\n" || strings.Join(requests, ",") != "/first,/good,/bad" {
 		t.Fatalf("ordering/rendering: output=%q mail=%q requests=%v", out, j.mails, requests)
 	}
 	s := j.state()
@@ -113,7 +113,7 @@ func TestCLIUnsafeStatePreserved(t *testing.T) {
 		`{"version":1,"profiles":{"":{"identity":"x"}}}`,
 		`{"version":1,"profiles":{},"pending":["dns: unchanged\nBcc: forged\n"]}`,
 		`{"version":1,"profiles":{},"pending":["dns: unchanged\r\n"]}`,
-		`{"version":1,"profiles":{},"pending":["\"bad\\nname\": unchanged\n"]}`,
+		`{"version":1,"profiles":{},"pending":["\"bad\nname\": unchanged\n"]}`,
 		`{"version":1,"profiles":{},"pending":["dns: synthetic-secret\n"]}`,
 		`{"version":1,"profiles":{},"pending":[""]}`,
 		`{"version":1,"profiles":{"dns":{"identity":"old"},"\u0064ns":{"identity":"new"}}}`,

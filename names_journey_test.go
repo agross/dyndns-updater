@@ -120,7 +120,7 @@ func TestBuiltCLIMappingNameAndFakeMail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantMail := "To: root\nSubject: dyndns-updater profile changes\nContent-Type: text/plain; charset=UTF-8\n\n" + strconv.Quote(name) + ": confirmed 127.0.0.1\n"
+	wantMail := "To: root\nSubject: dyndns-updater profile changes\nContent-Type: text/plain; charset=UTF-8\n\n" + name + ": confirmed 127.0.0.1\n"
 	if string(b) != wantMail || calls.Load() != 1 {
 		t.Fatalf("mail=%q calls=%d", b, calls.Load())
 	}

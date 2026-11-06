@@ -237,7 +237,7 @@ func update(c Config, d dependencies, out io.Writer) error {
 		failures[i] = reportedError{failure}
 	}
 	if s.Dirty {
-		s.Pending = append(s.Pending, strings.Join(notifications, "\n")+"\n")
+		s.Pending = append(s.Pending, "Summary generated at: "+d.now().UTC().Format(time.RFC3339)+"\n"+strings.Join(notifications, "\n")+"\n")
 		s.Dirty = false
 	}
 	// Persist notification content before submission. Successful local acceptance

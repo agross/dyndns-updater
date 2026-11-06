@@ -21,6 +21,7 @@ type journey struct {
 	missing         bool
 	mailError       bool
 	mails           []string
+	mailAttempts    []string
 }
 
 func newJourney(t *testing.T) *journey {
@@ -46,6 +47,7 @@ func (j *journey) run(want int) string {
 		}
 		return j.ip, nil
 	}, func() time.Time { return j.now }, func(_ Config, b string) error {
+		j.mailAttempts = append(j.mailAttempts, b)
 		if j.mailError {
 			return errors.New("mail failed")
 		}

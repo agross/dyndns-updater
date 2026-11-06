@@ -130,6 +130,14 @@ New notification lines use the exact configured profile name without added quote
 for example `Tunnel Broker: confirmed 1.2.3.4`. CLI diagnostics and results remain
 double-quoted and escaped.
 
+Each newly queued summary begins with `Summary generated at: 2026-01-01T00:00:00Z`
+(using its actual generation time in UTC, RFC 3339). This is the summary creation
+time, **not** the provider event time or eventual mail delivery time. The timestamp
+is persisted with the body and never refreshed during retries or recovery of an
+already queued message. If an interrupted run left only notification intent, the
+summary is timestamped when reconstructed on restart; the original event time is
+unknown. Existing timestamp-free pending messages are delivered unchanged.
+
 Summaries and retry intent are persisted before local sendmail submission. Failed
 submission returns nonzero and is retried later without repeating successful
 provider updates. Pending summaries are delivered in order; after an interrupted

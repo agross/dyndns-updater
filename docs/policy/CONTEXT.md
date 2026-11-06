@@ -33,7 +33,7 @@ A non-production instance intended for the human to try a proposed change. Its e
 _Avoid_: Production release.
 
 **Agreed-scope summary**:
-The concise statement of the proposed scope, acceptance criteria, and exclusions resulting from a work item's discussion. The `hermes:developer` label authorizes implementation of the issue scope.
+The concise statement of the proposed scope, acceptance criteria, and exclusions resulting from a work item's discussion. The `ready-for-agent` label authorizes implementation of the issue scope.
 _Avoid_: Consensus when referring to approval inferred without an explicit human decision.
 
 **Work priority**:

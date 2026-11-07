@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -27,7 +28,11 @@ func TestCLIFallbackSharedDNSAndHTTPDeadline(t *testing.T) {
 	j := newJourney(t)
 	j.write(profile("dns", "desec", endpoint))
 	j.fallback(resolver.address)
-	j.run(1)
+	out := j.run(1)
+	success := fmt.Sprintf("dns: DNS lookup succeeded using fallback resolver %q", resolver.address)
+	if !strings.Contains(out, success) || strings.Contains(out, fmt.Sprintf("DNS lookup failed using fallback resolver %q", resolver.address)) {
+		t.Fatalf("DNS success misattributed after HTTP deadline: %s", out)
+	}
 	if calls.Load() != 1 || j.state().Profiles["dns"].Address != "" {
 		t.Fatal("DNS and HTTP did not share one deadline")
 	}

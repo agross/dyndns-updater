@@ -77,7 +77,9 @@ func validProfileName(name string) bool {
 	return true
 }
 
-func renderProfileName(name string) string { return strconv.Quote(name) }
+// Names are validated at configuration/state boundaries to reject controls and
+// line separators. Render the exact visible name without adding quotes or escapes.
+func renderProfileName(name string) string { return name }
 
 var httpFailureStatus = regexp.MustCompile(`^provider HTTP failure \([1-9][0-9][0-9]\)$`)
 

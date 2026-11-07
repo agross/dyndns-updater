@@ -64,7 +64,7 @@ func TestBuiltCLIWithLocalSendmail(t *testing.T) {
 		if i == 1 {
 			decision, result = "skipping update: address unchanged and refresh not due", "unchanged"
 		}
-		want := "\"dns\": interface \"lo\" detected IPv4 127.0.0.1\n\"dns\": " + decision + "\n\"dns\": " + result + "\n"
+		want := "dns: interface \"lo\" detected IPv4 127.0.0.1\ndns: " + decision + "\ndns: " + result + "\n"
 		if string(b) != want {
 			t.Fatalf("built CLI output = %q, want %q", b, want)
 		}

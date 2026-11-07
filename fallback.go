@@ -40,17 +40,25 @@ func usableAddresses(addresses []net.IPAddr) []net.IPAddr {
 // local DNS fixtures without sending traffic outside the test host.
 var fallbackDNSDial = (&net.Dialer{Resolver: &net.Resolver{}}).DialContext
 
-func lookupProvider(ctx context.Context, host string, servers []string, report func(string, bool)) ([]net.IPAddr, error) {
+type dnsLookupEvent int
+
+const (
+	dnsLookupStarted dnsLookupEvent = iota
+	dnsLookupFailed
+	dnsLookupSucceeded
+)
+
+func lookupProvider(ctx context.Context, host string, servers []string, report func(string, dnsLookupEvent)) ([]net.IPAddr, error) {
 	// DNS workers may finish asynchronously after request cancellation. Capture
 	// the dial function before starting them, including when tests replace it.
 	dialDNS := fallbackDNSDial
-	report("system resolver", false)
+	report("system resolver", dnsLookupStarted)
 	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-	if addresses = usableAddresses(addresses); err == nil && len(addresses) > 0 {
-		report("", false)
+	if addresses = usableAddresses(addresses); err == nil && len(addresses) > 0 && ctx.Err() == nil {
+		report("system resolver", dnsLookupSucceeded)
 		return addresses, nil
 	}
-	report("system resolver", true)
+	report("system resolver", dnsLookupFailed)
 	for _, server := range servers {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -59,20 +67,20 @@ func lookupProvider(ctx context.Context, host string, servers []string, report f
 			// Respect Go's UDP/TCP selection, including TCP after truncated UDP.
 			return dialDNS(ctx, network, server)
 		}}
-		report(fmt.Sprintf("fallback resolver %q", server), false)
+		report(fmt.Sprintf("fallback resolver %q", server), dnsLookupStarted)
 		addresses, err = resolver.LookupIPAddr(ctx, host)
-		if addresses = usableAddresses(addresses); err == nil && len(addresses) > 0 {
-			report("", false)
+		if addresses = usableAddresses(addresses); err == nil && len(addresses) > 0 && ctx.Err() == nil {
+			report(fmt.Sprintf("fallback resolver %q", server), dnsLookupSucceeded)
 			return addresses, nil
 		}
-		report(fmt.Sprintf("fallback resolver %q", server), true)
+		report(fmt.Sprintf("fallback resolver %q", server), dnsLookupFailed)
 	}
 	return nil, errors.New("provider DNS lookup failed")
 }
 
 // Keep URL, Host, SNI, proxy policy and certificate checks untouched. Only the
 // destination dial for the provider hostname is replaced, not proxy resolution.
-func fallbackTransport(ctx context.Context, host string, servers []string, report func(string, bool)) *http.Transport {
+func fallbackTransport(ctx context.Context, host string, servers []string, report func(string, dnsLookupEvent)) *http.Transport {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	originalDial := transport.DialContext
 	transport.DialContext = func(dialCtx context.Context, network, address string) (net.Conn, error) {

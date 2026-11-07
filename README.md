@@ -73,8 +73,11 @@ invocations retry with the existing failure/recovery notification rules. Choose
 trusted resolvers and permit their UDP/TCP traffic: a fallback receives provider
 hostname queries and can return different addresses. TLS verification remains
 essential. Failed system and fallback lookups (including empty/unusable answers)
-are logged to stderr with the profile and resolver, without raw errors or credentials;
-these diagnostics do not enter mail summaries. No live DNS or gateway changes are
+are logged to stderr with the profile and resolver. Each attempted fallback is
+logged in order, followed by its failure or successful DNS resolution. DNS success
+means usable addresses were obtained, not that the provider update succeeded.
+System resolver success adds no DNS trace. Diagnostics omit raw errors, queries,
+URLs and credentials and do not enter mail summaries. No live DNS or gateway changes are
 required to test this feature.
 
 Unchanged successful profiles are skipped until refresh is due. Failed updates
@@ -209,8 +212,8 @@ queued notification is still retried during an interface outage. Invalid
 configuration does not submit mail.
 
 New notification lines use the exact configured profile name without added quotes,
-for example `Tunnel Broker: confirmed 1.2.3.4`. CLI diagnostics and results remain
-double-quoted and escaped.
+for example `Tunnel Broker: confirmed 1.2.3.4`. CLI diagnostics and results also
+use the exact validated name, without added quotes or escapes.
 
 Each newly queued summary begins with `Summary generated at: 2026-01-01T00:00:00Z`
 (using its actual generation time in UTC, RFC 3339). This is the summary creation
@@ -235,9 +238,9 @@ address, and due refresh. A no-op explicitly says the address is unchanged and
 refresh is not due. For example:
 
 ```text
-"gateway-dns": interface "en0" detected IPv4 192.0.2.10
-"gateway-dns": updating provider: no confirmed state
-"gateway-dns": confirmed 192.0.2.10
+gateway-dns: interface "en0" detected IPv4 192.0.2.10
+gateway-dns: updating provider: no confirmed state
+gateway-dns: confirmed 192.0.2.10
 ```
 
 These operational trace lines go to stderr with the final all-profile results;
@@ -246,10 +249,10 @@ unavailable interface produces only its failure result (no fabricated detected
 address or provider call).
 
 Every error returns a nonzero exit status, even when other profiles succeeded.
-Each final profile result is printed once as `"<escaped profile name>": <result>`; unavailable
+Each final profile result is printed once as `<profile name>: <result>`; unavailable
 IPv4 diagnostics include the configured interface name. Run-level errors use
-`[error] <reason>`; profile names are always double-quoted and escaped, so this
-unquoted prefix is distinct even from a profile named `[error]`. Configuration errors identify the quoted
+`[error] <reason>` (without the profile-prefix colon). Profile names are rendered
+literally after validation rejects controls and line separators. Configuration errors identify the quoted
 attempted filename (including the default path when `--config` is omitted), without
 including configuration contents or raw parser errors.
 State-lock open errors identify the state directory that must exist and be writable.
@@ -273,8 +276,8 @@ The exact decoded string identifies state: names are not trimmed, case-folded,
 or Unicode-normalized. `Home DNS` and `"Home DNS"` identify the same profile;
 `" Home DNS"` and `"home DNS"` do not. Profiles and newly generated summaries use
 ascending decoded-name order (case-sensitive Unicode/code-point order), replacing
-list order. Names are double-quoted and escaped in CLI logs/results; newly generated
-notification summaries display names literally, never as mail headers. Credentials
+list order. Names are displayed literally without added quotes in CLI logs/results
+and newly generated notification summaries, never as mail headers. Credentials
 and raw parser diagnostics are not echoed.
 
 Convert each former list entry's `name` into its mapping key and remove the

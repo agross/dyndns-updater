@@ -39,7 +39,7 @@ type Profile struct {
 var hostName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
 
 func loadConfig(path string) (Config, error) {
-	c := Config{State: "/var/lib/dyndns-updater/state.json", Refresh: "600h", Timeout: "30s", Sendmail: "/usr/sbin/sendmail", Recipient: "root"}
+	c := Config{State: "/var/lib/dyndns-updater/state.json", Refresh: "600h", Timeout: "30s", Sendmail: "/usr/sbin/sendmail", Recipient: "root", FallbackDNS: []string{"1.1.1.1", "8.8.8.8", "9.9.9.9"}}
 	f, err := os.Open(path)
 	if err != nil {
 		return c, errors.New("cannot read configuration")

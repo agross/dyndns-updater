@@ -33,7 +33,7 @@ func TestCLIFallbackSharedDNSAndHTTPDeadline(t *testing.T) {
 	}
 }
 
-func TestCLIFallbackUnavailableAndOmitted(t *testing.T) {
+func TestCLIFallbackUnavailableAndDisabled(t *testing.T) {
 	system := startDNS(t, "127.0.0.1:0")
 	system.mode.Store(1)
 	localSystemDNS(t, system)
@@ -55,10 +55,11 @@ func TestCLIFallbackUnavailableAndOmitted(t *testing.T) {
 	}
 	count := later.udp.Load()
 	j.write(profile("dns", "desec", endpoint))
+	j.fallback()
 	j.ip = "192.0.2.11"
 	j.run(1)
 	if later.udp.Load() != count || j.state().Profiles["dns"].Address != "192.0.2.10" {
-		t.Fatal("omitted list changed normal failure behavior")
+		t.Fatal("explicit empty list changed system-only failure behavior")
 	}
 }
 

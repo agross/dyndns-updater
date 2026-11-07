@@ -28,13 +28,26 @@ type fakeDNS struct {
 
 func startDNS(t *testing.T, address string) *fakeDNS {
 	t.Helper()
-	listener, err := net.Listen("tcp", address)
-	if err != nil {
-		t.Fatal(err)
-	}
-	packet, err := net.ListenPacket("udp", listener.Addr().String())
-	if err != nil {
+	var listener net.Listener
+	var packet net.PacketConn
+	var err error
+	for attempt := 0; attempt < 10; attempt++ {
+		listener, err = net.Listen("tcp", address)
+		if err != nil {
+			t.Fatal(err)
+		}
+		packet, err = net.ListenPacket("udp", listener.Addr().String())
+		if err == nil {
+			break
+		}
 		listener.Close()
+		// An ephemeral TCP port can already be occupied by an unrelated UDP
+		// socket. Request a new pair rather than failing an offline test.
+		if !strings.HasSuffix(address, ":0") {
+			t.Fatal(err)
+		}
+	}
+	if err != nil {
 		t.Fatal(err)
 	}
 	d := &fakeDNS{address: listener.Addr().String()}
@@ -157,7 +170,11 @@ func (j *journey) fallback(servers ...string) {
 	if err != nil {
 		j.t.Fatal(err)
 	}
-	b = append(b, []byte("fallback_dns:\n")...)
+	if len(servers) == 0 {
+		b = append(b, []byte("fallback_dns: []\n")...)
+	} else {
+		b = append(b, []byte("fallback_dns:\n")...)
+	}
 	for _, server := range servers {
 		b = append(b, []byte(fmt.Sprintf("  - %q\n", server))...)
 	}

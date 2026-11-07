@@ -4,10 +4,13 @@ refresh: 600h # 25 days; Go duration syntax (h, m, s), not "25d"
 timeout: 30s # per provider request and sendmail invocation
 sendmail: /usr/sbin/sendmail
 recipient: root
-# Optional ordered fallback DNS; system DNS is always tried first.
+# System DNS is always tried first. Omitted fallback_dns defaults to
+# 1.1.1.1, 8.8.8.8, then 9.9.9.9 (all port 53).
 # One request timeout covers DNS, all fallbacks, TLS and response together.
-# Omit or leave empty to disable. Examples below are documentation-only IPs.
-fallback_dns: []
+# Set fallback_dns: [] to disable; a nonempty list replaces the defaults.
+# Defaults send provider hostname queries to Cloudflare, Google and Quad9 as needed.
+# fallback_dns: []
+# Custom examples below are documentation-only IPs.
 # fallback_dns:
 #   - "192.0.2.53"           # port 53 by default
 #   - "2001:db8::53"        # bare IPv6, port 53

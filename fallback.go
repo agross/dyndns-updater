@@ -40,7 +40,14 @@ func usableAddresses(addresses []net.IPAddr) []net.IPAddr {
 	return result
 }
 
+// Overridden only by nonparallel tests to route public resolver addresses to
+// local DNS fixtures without sending traffic outside the test host.
+var fallbackDNSDial = (&net.Dialer{Resolver: &net.Resolver{}}).DialContext
+
 func lookupProvider(ctx context.Context, host string, servers []string) ([]net.IPAddr, error) {
+	// DNS workers may finish asynchronously after request cancellation. Capture
+	// the dial function before starting them, including when tests replace it.
+	dialDNS := fallbackDNSDial
 	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
 	if addresses = usableAddresses(addresses); err == nil && len(addresses) > 0 {
 		return addresses, nil
@@ -51,7 +58,7 @@ func lookupProvider(ctx context.Context, host string, servers []string) ([]net.I
 		}
 		resolver := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
 			// Respect Go's UDP/TCP selection, including TCP after truncated UDP.
-			return (&net.Dialer{}).DialContext(ctx, network, server)
+			return dialDNS(ctx, network, server)
 		}}
 		addresses, err = resolver.LookupIPAddr(ctx, host)
 		if addresses = usableAddresses(addresses); err == nil && len(addresses) > 0 {

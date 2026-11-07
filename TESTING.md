@@ -37,6 +37,9 @@ resolver/transport values, and restore them afterward.
   requests and persisted confirmations are checked as well as ordered endpoints.
 - Unavailable/disabled-list tests cover a closed local resolver, later success and
   system-only failure behavior when an explicit empty list disables fallback.
+- CLI diagnostics tests cover failed system/fallback lookups, empty/unusable
+  answers, disabled fallback, quiet successful lookup, and credential-safe logs
+  excluded from notification summaries.
 - Configuration tests accept IPv4/IPv6 literals with default/explicit ports and
   reject invalid later entries before interface/provider/mail/state side effects.
 

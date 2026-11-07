@@ -145,7 +145,7 @@ func localSystemDNS(t *testing.T, d *fakeDNS) {
 	t.Helper()
 	previous := net.DefaultResolver
 	net.DefaultResolver = &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, network, d.address)
+		return (&net.Dialer{Resolver: &net.Resolver{}}).DialContext(ctx, network, d.address)
 	}}
 	t.Cleanup(func() { net.DefaultResolver = previous })
 }

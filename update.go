@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -45,7 +46,7 @@ func identity(p Profile) string {
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
 }
-func providerUpdate(c Config, p Profile, ip string, now func() time.Time) error {
+func providerUpdate(c Config, p Profile, ip string, now func() time.Time, out io.Writer) error {
 	u, _ := url.Parse(p.Endpoint)
 	q := u.Query()
 	q.Set("hostname", p.Target)
@@ -69,11 +70,37 @@ func providerUpdate(c Config, p Profile, ip string, now func() time.Time) error 
 		req.SetBasicAuth(p.Username, p.Password)
 	}
 	client := &http.Client{Timeout: c.timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	if len(c.FallbackDNS) > 0 {
-		transport := fallbackTransport(ctx, u.Hostname(), c.FallbackDNS)
-		defer transport.CloseIdleConnections()
-		client.Transport = transport
-	}
+	// HTTP dialing can finish asynchronously after cancellation. Buffer safe,
+	// fixed diagnostics under a mutex and write only on this request's goroutine.
+	// Never log raw DNS errors, URLs, queries, or credentials.
+	var logMu sync.Mutex
+	var dnsFailures []string
+	activeLookup := ""
+	loggingDone := false
+	defer func() {
+		logMu.Lock()
+		defer logMu.Unlock()
+		loggingDone = true
+		if activeLookup != "" && ctx.Err() != nil {
+			dnsFailures = append(dnsFailures, activeLookup)
+		}
+		for _, resolver := range dnsFailures {
+			fmt.Fprintf(out, "%s: DNS lookup failed using %s (lookup error or no usable addresses)\n", renderProfileName(p.Name), resolver)
+		}
+	}()
+	transport := fallbackTransport(ctx, u.Hostname(), c.FallbackDNS, func(resolver string, failed bool) {
+		logMu.Lock()
+		defer logMu.Unlock()
+		if !loggingDone {
+			activeLookup = resolver
+			if failed {
+				dnsFailures = append(dnsFailures, resolver)
+				activeLookup = ""
+			}
+		}
+	})
+	defer transport.CloseIdleConnections()
+	client.Transport = transport
 	resp, err := client.Do(req)
 	if err != nil {
 		return errors.New("provider transport failure (DNS, connection, or TLS)")
@@ -192,7 +219,7 @@ func update(c Config, d dependencies, out io.Writer) error {
 				e = providerFailure{kind: blocked.Kind, until: blocked.Until}
 			} else {
 				fmt.Fprintf(out, "%s: updating provider: %s\n", renderProfileName(p.Name), reason)
-				e = providerUpdate(c, p, ip, d.now)
+				e = providerUpdate(c, p, ip, d.now, out)
 				var failure providerFailure
 				if errors.As(e, &failure) {
 					var retryErr error

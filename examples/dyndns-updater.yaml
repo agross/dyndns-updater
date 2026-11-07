@@ -12,10 +12,10 @@ recipient: root
 # fallback_dns: []
 # Custom examples below are documentation-only IPs.
 # fallback_dns:
-#   - "192.0.2.53"           # port 53 by default
-#   - "2001:db8::53"        # bare IPv6, port 53
-#   - "192.0.2.54:5353"     # optional explicit port
-#   - "[2001:db8::54]:5353" # brackets required for IPv6 with port
+#   - "192.0.2.10"           # port 53 by default
+#   - "2001:db8::10"        # bare IPv6, port 53
+#   - "192.0.2.20:5353"     # optional explicit port
+#   - "[2001:db8::20]:5353" # brackets required for IPv6 with port
 profiles:
   gateway-dns:
     provider: desec

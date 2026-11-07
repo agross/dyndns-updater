@@ -4,6 +4,15 @@ refresh: 600h # 25 days; Go duration syntax (h, m, s), not "25d"
 timeout: 30s # per provider request and sendmail invocation
 sendmail: /usr/sbin/sendmail
 recipient: root
+# Optional ordered fallback DNS; system DNS is always tried first.
+# One request timeout covers DNS, all fallbacks, TLS and response together.
+# Omit or leave empty to disable. Examples below are documentation-only IPs.
+fallback_dns: []
+# fallback_dns:
+#   - "192.0.2.53"           # port 53 by default
+#   - "2001:db8::53"        # bare IPv6, port 53
+#   - "192.0.2.54:5353"     # optional explicit port
+#   - "[2001:db8::54]:5353" # brackets required for IPv6 with port
 profiles:
   gateway-dns:
     provider: desec

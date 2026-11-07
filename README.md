@@ -26,8 +26,50 @@ credentials, and invalid durations/targets fail before any updates or mail.
 
 Each run detects each profile's current interface IPv4 address. When an interface
 has multiple IPv4 addresses, the first IPv4 address returned by the OS is used;
-configure a dedicated interface if selection matters. No public address discovery
-or custom DNS fallback is included (tracked in #3 and #4).
+configure a dedicated interface if selection matters. Public address discovery is
+not included (tracked in #3).
+
+### Fallback DNS
+
+By default the normal system resolver is used, unchanged. Optionally configure
+an ordered global list of literal DNS server IP addresses:
+
+```yaml
+fallback_dns:
+  - "192.0.2.53"           # default port 53
+  - "2001:db8::53"        # bare IPv6, default port 53
+  - "192.0.2.54:5353"     # explicit port
+  - "[2001:db8::54]:5353" # IPv6 with a port requires brackets
+```
+
+These documentation addresses are examples, not working public resolvers. Omit
+`fallback_dns` (or use `[]`) to disable fallback. Hostnames, malformed literals,
+zone identifiers, and ports outside 1–65535 are rejected. The entire list is
+validated before state locking/writes, provider requests, or mail submission.
+Changing this list does not change profile identity or invalidate confirmed state.
+
+System DNS is tried first. Only a failed/negative lookup or a lookup with no usable
+addresses causes fallback; servers are tried in list order until one succeeds or
+the request deadline expires. DNS uses UDP and TCP when needed, directly to the
+configured IP. Literal-IP provider endpoints skip DNS. No DNS cache or system DNS
+changes are introduced. The existing `timeout` is one shared budget for system
+DNS, all fallback attempts, connection, TLS, and the HTTP response, **not** a fresh
+budget per server. An unresponsive resolver can consume the whole budget, leaving
+no time for later entries. Cancellation stops outstanding fallback resolution.
+
+Connection, TLS, HTTP, and provider-response failures do not trigger another
+resolver or repeat an update. The original HTTP hostname, TLS SNI and certificate
+verification, HTTPS restrictions and redirect policy are retained. Environment
+proxy policy is unchanged: when an HTTP(S) proxy resolves the provider, fallback
+does not replace that proxy's DNS or bypass a failing proxy. Proxy-host resolution
+itself continues to use normal system DNS.
+
+Resolver exhaustion is the existing credential-safe provider transport failure:
+other profiles continue, last confirmed addresses remain intact, and later
+invocations retry with the existing failure/recovery notification rules. Choose
+trusted resolvers and permit their UDP/TCP traffic: a fallback receives provider
+hostname queries and can return different addresses. TLS verification remains
+essential. No live DNS or gateway changes are required to test this feature.
 
 Unchanged successful profiles are skipped until refresh is due. Failed updates
 are retried on later invocations unless a durable provider retry restriction applies

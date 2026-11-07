@@ -78,6 +78,26 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
 - Exact-name identity tests retain their names in configuration while testing
   distinct identities; absent names are no longer expected to accumulate in state.
 
+## Notification sender display name (#30)
+
+- `TestBuiltCLISenderName` builds and runs the CLI with temporary configuration,
+  a local HTTP provider and an executable fake sendmail. NUL-delimited argument
+  capture verifies the exact omitted/configured arguments, a single literal
+  `-F` value (spaces, punctuation, quotes, Unicode, percent/template/shell-like
+  text), unchanged recipient handling and no envelope override. Complete message
+  bytes prove no explicit `From` header and unchanged summary construction.
+- The same journey captures failed submission (without leaking MTA stderr), then
+  retries two queued summaries in order with a changed configured name, unchanged
+  bodies/confirmations, no redundant provider update and no new no-op mail.
+- `TestCLIRejectUnsafeSenderName` rejects empty/blank/option-like values, CR, LF,
+  NUL, tab, DEL, Unicode controls, format controls, line/paragraph separators and
+  non-scalar values through CLI configuration validation. It asserts no provider
+  or mail attempts, no new state/lock entries and byte-identical existing state.
+- Run `go test -run 'TestBuiltCLISenderName|TestCLIRejectUnsafeSenderName' ./...`.
+  The full suite retains independent-profile, notification trigger and durability
+  regressions. Tests use no real DNS updates or mail; real MTA compatibility and
+  remote delivery/authentication remain operator checks.
+
 ## Notification generation timestamps (#24)
 
 - `TestCLINotificationGenerationTime` uses the CLI with controlled non-UTC time,

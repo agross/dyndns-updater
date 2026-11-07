@@ -164,6 +164,40 @@ guessing. Existing version-1 state remains readable without new fields; older
 binaries do not understand the added retry fields and safely reject that state.
 See [the response/retry matrix and sources](docs/provider-contracts.md).
 
+### Notification sender display name
+
+Optionally set a literal display name for a compatible local sendmail:
+
+```yaml
+sender_name: 'dyndns-updater on gateway-home'
+```
+
+With this setting, submission uses `sendmail -oi -F NAME -- RECIPIENT`, with
+`NAME` passed as one separate argument, never through a shell. The updater does
+not add a `From` header or specify a sender address or envelope sender (`-f`);
+the local mail system remains responsible for those. The recipient and message
+construction are unchanged. Omit `sender_name` (or use YAML null) to retain the
+existing `sendmail -oi -- RECIPIENT` behavior. An explicitly empty or
+whitespace-only name is invalid, as are names beginning with `-` after leading
+whitespace, Unicode controls/format controls, and line/paragraph separators.
+Validation occurs before provider requests, state locking/writes, or mail.
+
+Spaces, punctuation, quotes, backslashes, percent signs and ordinary Unicode are
+passed literally, without trimming, hostname lookup, substitutions or templates.
+Ansible or another configuration manager can render a host-specific literal into
+this value; the application does not interpret `%s`, `%(hostname)s` or `{{ ... }}`.
+Changing the name does not affect profile identity, confirmations, notification
+triggers or persisted summary bodies. Pending mail uses the current configured
+name on every submission attempt; bodies and queue order remain unchanged.
+
+This requires a sendmail-compatible MTA accepting a separate `-F` full-name
+argument and generating the sender header when no `From` header is provided.
+The observed Postfix setup supports this behavior; other MTAs/wrappers may ignore
+or reject the option, so verify compatibility locally before enabling it. Failed
+submission retains the existing durable retry behavior and credential-safe errors.
+Local acceptance does not guarantee remote delivery, SPF, DKIM or DMARC success.
+No MTA, gateway or DNS configuration is changed by the updater.
+
 ### Notifications and exits
 
 One summary containing every configured profile is queued when a successful

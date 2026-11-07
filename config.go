@@ -21,6 +21,7 @@ type Config struct {
 	Timeout          string   `yaml:"timeout"`
 	Sendmail         string   `yaml:"sendmail"`
 	Recipient        string   `yaml:"recipient"`
+	SenderName       *string  `yaml:"sender_name"`
 	Profiles         Profiles `yaml:"profiles"`
 	FallbackDNS      []string `yaml:"fallback_dns"`
 	refresh, timeout time.Duration
@@ -71,6 +72,14 @@ func loadConfig(path string) (Config, error) {
 	}
 	if !filepath.IsAbs(c.State) || !filepath.IsAbs(c.Sendmail) || len(c.Profiles) == 0 || strings.ContainsAny(c.Recipient, "\r\n\x00") || c.Recipient == "" || strings.HasPrefix(c.Recipient, "-") {
 		return c, errors.New("invalid state, sendmail, recipient, or empty profiles")
+	}
+	if c.SenderName != nil {
+		name := *c.SenderName
+		// Keep the decoded text literal. Reject controls and option-like names
+		// without including untrusted configuration in diagnostics.
+		if !validProfileName(name) || strings.TrimSpace(name) == "" || strings.HasPrefix(strings.TrimSpace(name), "-") {
+			return c, errors.New("invalid sender_name (visible, non-option display name required)")
+		}
 	}
 	for i, server := range c.FallbackDNS {
 		address, err := resolverAddress(server)

@@ -141,7 +141,12 @@ func providerUpdate(c Config, p Profile, ip string, now func() time.Time, out io
 func submitMail(c Config, body string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, c.Sendmail, "-oi", "--", c.Recipient)
+	args := []string{"-oi"}
+	if c.SenderName != nil {
+		args = append(args, "-F", *c.SenderName)
+	}
+	args = append(args, "--", c.Recipient)
+	cmd := exec.CommandContext(ctx, c.Sendmail, args...)
 	cmd.Stdin = strings.NewReader("To: " + c.Recipient + "\nSubject: dyndns-updater profile changes\nContent-Type: text/plain; charset=UTF-8\n\n" + body)
 	// Never forward MTA output: wrappers can echo their input or configuration.
 	if cmd.Run() != nil {

@@ -39,10 +39,10 @@ ordered literal DNS server IP addresses:
 
 ```yaml
 fallback_dns:
-  - "192.0.2.53"           # default port 53
-  - "2001:db8::53"        # bare IPv6, default port 53
-  - "192.0.2.54:5353"     # explicit port
-  - "[2001:db8::54]:5353" # IPv6 with a port requires brackets
+  - "192.0.2.10"           # default port 53
+  - "2001:db8::10"        # bare IPv6, default port 53
+  - "192.0.2.20:5353"     # explicit port
+  - "[2001:db8::20]:5353" # IPv6 with a port requires brackets
 ```
 
 These documentation addresses are examples, not working public resolvers. Set
@@ -72,7 +72,10 @@ other profiles continue, last confirmed addresses remain intact, and later
 invocations retry with the existing failure/recovery notification rules. Choose
 trusted resolvers and permit their UDP/TCP traffic: a fallback receives provider
 hostname queries and can return different addresses. TLS verification remains
-essential. No live DNS or gateway changes are required to test this feature.
+essential. Failed system and fallback lookups (including empty/unusable answers)
+are logged to stderr with the profile and resolver, without raw errors or credentials;
+these diagnostics do not enter mail summaries. No live DNS or gateway changes are
+required to test this feature.
 
 Unchanged successful profiles are skipped until refresh is due. Failed updates
 are retried on later invocations unless a durable provider retry restriction applies

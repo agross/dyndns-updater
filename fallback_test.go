@@ -10,7 +10,7 @@ import (
 )
 
 func TestCLIInvalidFallbackBeforeSideEffects(t *testing.T) {
-	for _, value := range []string{"resolver.example", "127.0.0.1:0", "127.0.0.1:65536", "[::1]:bad", "[::1]", "127.0.0.1:", "", "127.0.0.1:domain", "192.0.2.1%zone"} {
+	for _, value := range []string{"resolver.example", "127.0.0.1:0", "127.0.0.1:65536", "[::1]:bad", "[::1]", "127.0.0.1:", "", "127.0.0.1:domain", "127.0.0.1:+53", "127.0.0.1:-53", "127.0.0.1: 53", "127.0.0.1:999999999999999999999", "192.0.2.1%zone"} {
 		t.Run(value, func(t *testing.T) {
 			j := newJourney(t)
 			j.write(profile("dns", "desec", "https://example.invalid/"))

@@ -55,7 +55,7 @@ func TestCLIRetryAfterEdges(t *testing.T) {
 }
 
 func TestCLIHEAbuseResumeConditions(t *testing.T) {
-	for _, change := range []string{"refresh", "password", "username", "target", "endpoint", "interface"} {
+	for _, change := range []string{"refresh", "password", "username", "target", "endpoint", "interface", "provider"} {
 		t.Run(change, func(t *testing.T) {
 			j := newJourney(t)
 			calls := 0
@@ -65,6 +65,10 @@ func TestCLIHEAbuseResumeConditions(t *testing.T) {
 					fmt.Fprint(w, "abuse\n")
 					return
 				}
+				if r.URL.Query().Get("myipv4") != "" {
+					fmt.Fprint(w, "good")
+					return
+				}
 				fmt.Fprint(w, "nochg "+r.URL.Query().Get("myip"))
 			}))
 			defer srv.Close()
@@ -72,12 +76,21 @@ func TestCLIHEAbuseResumeConditions(t *testing.T) {
 			j.write(base)
 			j.run(1)
 			if change == "refresh" {
-				j.now = j.now.Add(600*time.Hour - time.Nanosecond)
+				data, err := os.ReadFile(j.config)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(j.config, []byte(strings.ReplaceAll(string(data), "refresh: 600h", "refresh: 1s")), 0600); err != nil {
+					t.Fatal(err)
+				}
+				j.now = j.now.Add(15*time.Minute - time.Nanosecond)
 				j.run(1)
 				j.now = j.now.Add(time.Nanosecond)
 			} else {
 				from, to := "synthetic-password", "new-password"
 				switch change {
+				case "provider":
+					from, to = "provider: tunnelbroker", "provider: desec"
 				case "username":
 					from, to = "synthetic-user", "new-user"
 				case "target":
@@ -88,6 +101,12 @@ func TestCLIHEAbuseResumeConditions(t *testing.T) {
 					from, to = "interface: wan", "interface: changed"
 				}
 				j.write(strings.ReplaceAll(base, from, to))
+				j.now = j.now.Add(15*time.Minute - time.Nanosecond)
+				j.run(1)
+				if calls != 1 || len(j.mails) != 1 {
+					t.Fatal("configuration bypassed active HE deadline")
+				}
+				j.now = j.now.Add(time.Nanosecond)
 			}
 			j.run(0)
 			if calls != 2 || len(j.mails) != 2 {

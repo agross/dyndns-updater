@@ -46,8 +46,11 @@ Sources re-read during #16:
    enumerated error or retry contract.
 4. [Owner's verified HE observation and deSEC fallback decision](https://github.com/agross/dyndns-updater/issues/16#issuecomment-6667593783),
    and [explicit HE address-state override](https://github.com/agross/dyndns-updater/issues/16#issuecomment-6669641469).
-   These intentionally revise #16's original strict-confirmation requirement for
-   HE `abuse`; they are project policy, not a claim of documented HE success.
+   This historical assumed-acceptance policy is superseded by
+   [#34](https://github.com/agross/dyndns-updater/issues/34): a later successful
+   request after state removal suggests a temporary condition, but proves neither
+   prior acceptance nor HE's actual block duration. The 15-minute retry delay is
+   a project decision, not a documented HE guarantee.
 5. [HTTP Retry-After syntax](https://www.rfc-editor.org/rfc/rfc9110#section-10.2.3)
    permits delta-seconds or an HTTP date. deSEC documents seconds; accepting an
    HTTP date is defensive HTTP compatibility, not a claim about observed headers.
@@ -60,7 +63,7 @@ Sources re-read during #16:
 | deSEC 404, any body | domain not found; correct target/token/configuration | intervention | 1; client intervention policy |
 | deSEC 429, any body | rate limited; UTC retry deadline | wait until deadline; share latest active wait across pending deSEC updates in the same state file | 2, 4, 5 |
 | HE 200, `good ADDRESS` or `nochg ADDRESS`, matching requested IPv4 | confirmed requested IPv4 | clear restriction, record address/time and recovery | existing #2 contract / 3 |
-| HE 200, exactly `abuse` | failure; address assumed accepted | advance address/time but remain failing; suppress same address until refresh, credential or identity change | 4 |
+| HE 200, exactly `abuse` | failure; update unconfirmed; UTC retry deadline | retain prior confirmation; pause profile for 15 minutes from response, then retry current address | 4 / #34 |
 | Either provider, other non-200 status (including redirect) | HTTP failure with numeric status only | retry next invocation | no verified provider-specific retry guidance |
 | Either provider, malformed/oversized/unexpected 200 body, including contradictory success/error text | invalid response or generic rejection | retry next invocation; never advance address | strict client validation |
 | Either provider, DNS/connect/TLS/timeout/read failure | generic transport/invalid-response diagnostic | retry next invocation; never advance address | client policy, not provider-specific timing |
@@ -70,7 +73,7 @@ contradictory text. Responses are bounded to 4096 bytes when body classification
 is needed. deSEC's error classification uses HTTP status alone; error bodies are
 not consumed or reflected. All unknown HE error tokens (including `badauth`,
 `nohost`, `dnserr`, `911`) remain generic errors: Dyn's 30-minute rule is **not**
-assigned to HE without evidence. A non-200 `abuse` is not assumed accepted.
+assigned to HE without evidence. A non-200 `abuse` remains a generic HTTP failure.
 
 ### Exact recovery rules
 
@@ -78,12 +81,23 @@ Intervention holds for deSEC 400/401/404 survive address changes, refresh and
 restarts. Token or identity (provider/target/interface/endpoint) corrections
 release them. Removing that profile's state also releases them; provider-side-only
 corrections cannot be detected without another request and need an explicit reset.
-HE `abuse` holds only for the stored address and current credentials/identity,
-until `updated + refresh` using the current configuration; change any of these to
-retry. Both initial and suppressed abuse are failures/nonzero exits; recovery is
-notified only after a strict successful response. Repeated unchanged suppression
-alone does not create new mail. Credential-only rotation never invalidates an
-already-successful confirmation.
+HE `abuse` persists an absolute UTC `until = response receipt + 15 minutes`.
+The pause applies to the named profile regardless of address, credentials,
+configuration (including provider identity), or refresh changes. Suppressed runs
+retain that exact deadline. At or after expiry retry the current address; another
+`abuse` sets a new deadline from its response. Preserve earlier confirmed state
+unless identity changes invalidate it. Both initial and suppressed abuse are
+failures/nonzero exits; only a strict successful response clears failure and
+notifies recovery. Repeated abuse or suppression does not create new failure mail.
+Other profiles continue independently. Explicit state removal clears the pause
+under existing reset semantics; do not use resets to defeat throttling.
+
+Valid legacy `he-abuse` records with zero `until` derive the deadline from stored
+`updated + 15 minutes`. Clear their assumed address and timestamp: neither was
+confirmed. Active derived deadlines suppress; expired ones retry immediately.
+Migration preserves failure, queued messages (including historical assumed-status
+text), validation and atomic persistence. Credential-only rotation never
+invalidates an already-successful confirmation.
 
 A single valid Retry-After delta or date is preferred over the two-minute fallback,
 even if shorter. Missing, duplicate, negative, fractional, nonnumeric, or out-of-range

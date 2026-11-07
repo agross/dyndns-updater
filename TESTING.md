@@ -184,12 +184,23 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
   sharing, no request for a second deSEC profile, independent HE success, source
   profile removal, configuration/credential changes not bypassing a surviving wait,
   unchanged-failure mail deduplication, and deadline recovery.
-- `TestCLIHEAbuseAcceptedButFailing` checks the owner-requested address advancement
-  while failing, same-address suppression across CLI runs and address-change recovery.
-  `TestCLIHEAbuseResumeConditions` checks exact refresh and credential/identity
-  correction boundaries. `TestCLIUnverifiedHEErrorsAreNotAssumedAccepted` rejects
+- #34 supersedes #16's original HE assumed-acceptance behavior:
+  `TestCLIHEAbuseUnconfirmedAndFailing` verifies an initial abuse leaves no confirmation,
+  including changed-address suppression and recovery after 15 minutes.
+  `TestCLIHEAbuseResumeConditions` checks exact deadline and credential/identity/
+  refresh changes cannot bypass the pause. `TestCLIHEAbuseDeadlineJourney` covers
+  response-time UTC deadlines with subsecond/non-UTC clocks, preserved prior
+  confirmation, independent profiles, durable failed mail, repeated abuse renewing
+  the deadline, exact-boundary recovery and quiet subsequent runs.
+  `TestCLIHEAbuseLegacyMigration` checks active/expired legacy deadlines, removal
+  of assumed confirmations, and unchanged delivery of historical queued mail.
+  `TestBuiltCLIHEAbuseSurvivesRestart` executes separate processes with loopback
+  HTTP and fake sendmail, checking the receipt-time deadline and one failure mail.
+  `TestCLIHEAbuseMalformedStatePreserved` rejects invalid deadlines, fingerprints,
+  failure flags and queued statuses without provider/mail activity or file changes.
+  `TestCLIUnverifiedHEErrorsAreNotAssumedAccepted` rejects
   unknown tokens, misleading abuse/success, oversized bodies and address mismatch
-  without inventing HE cooldowns or accepting unconfirmed addresses.
+  without inventing retry rules for unknown responses or accepting unconfirmed addresses.
 - `TestCLIRetryAfterEdges` checks zero, short valid delays, past HTTP dates, signed/
   fractional/duplicate headers, no early retry, and exact-boundary recovery.
 - `TestCLIInvalidRetryStatePreserved` rejects invalid retry codes/fields and compares

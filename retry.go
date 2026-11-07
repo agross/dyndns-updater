@@ -38,7 +38,7 @@ func retryMessage(kind string, until time.Time) string {
 	case "desec-rate":
 		return "deSEC rate limited; retry at " + until.UTC().Format(time.RFC3339)
 	case "he-abuse":
-		return "HE abuse response; address assumed accepted; retry on address/configuration change or when refresh is due"
+		return "HE abuse response; update unconfirmed; retry at " + until.UTC().Format(time.RFC3339)
 	}
 	return "invalid provider response"
 }
@@ -82,9 +82,14 @@ func validRetry(r *retryState, p profileState) bool {
 	switch r.Kind {
 	case "desec-auth", "desec-hostname", "desec-target":
 	case "he-abuse":
-		if p.Address == "" || p.Updated.IsZero() {
+		if !hexDigest(r.Salt) || !hexDigest(r.Key) {
 			return false
 		}
+		if r.Until.IsZero() {
+			// Legacy records stored an assumed address and response timestamp.
+			return p.Address != "" && !p.Updated.IsZero() && p.Updated.Add(15*time.Minute).Year() <= 9999
+		}
+		return r.Until.Year() >= 1 && r.Until.Year() <= 9999
 	default:
 		return false
 	}
@@ -96,12 +101,13 @@ func validRetry(r *retryState, p profileState) bool {
 // share a 429 across all deSEC profiles in this state file (even distinct tokens
 // and endpoints). Copy the latest restriction to other affected profiles before their
 // request; it then survives removal/reconfiguration of the originating profile.
-func blockedRetry(s diskState, p Profile, old profileState, ip string, now time.Time, refresh time.Duration) *retryState {
+func blockedRetry(s diskState, p Profile, old profileState, now time.Time) *retryState {
 	r := old.Retry
-	if r != nil && r.Kind != "desec-rate" && retryKey(p, r.Salt) == r.Key {
-		if r.Kind != "he-abuse" || (old.Address == ip && now.Sub(old.Updated) < refresh) {
-			return r
-		}
+	if r != nil && r.Kind == "he-abuse" && now.Before(r.Until) {
+		return r
+	}
+	if r != nil && r.Kind != "desec-rate" && r.Kind != "he-abuse" && retryKey(p, r.Salt) == r.Key {
+		return r
 	}
 	if p.Provider == "desec" {
 		var latest *retryState

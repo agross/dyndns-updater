@@ -88,6 +88,15 @@ func readState(path string) (diskState, error) {
 			return s, errors.New("invalid pending notification state; preserved")
 		}
 	}
+	// Migrate only after validating the entire file. Legacy HE addresses were
+	// assumed, not confirmed; retain failure, queued mail and the derived wait.
+	for name, p := range s.Profiles {
+		if p.Retry != nil && p.Retry.Kind == "he-abuse" && p.Retry.Until.IsZero() {
+			p.Retry.Until = p.Updated.UTC().Add(15 * time.Minute)
+			p.Address, p.Updated = "", time.Time{}
+			s.Profiles[name] = p
+		}
+	}
 	return s, nil
 }
 func saveState(path string, s diskState) error {

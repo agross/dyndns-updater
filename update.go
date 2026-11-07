@@ -74,29 +74,48 @@ func providerUpdate(c Config, p Profile, ip string, now func() time.Time, out io
 	// fixed diagnostics under a mutex and write only on this request's goroutine.
 	// Never log raw DNS errors, URLs, queries, or credentials.
 	var logMu sync.Mutex
-	var dnsFailures []string
+	var dnsDiagnostics []string
 	activeLookup := ""
 	loggingDone := false
+	failureDiagnostic := func(resolver string) string {
+		return "DNS lookup failed using " + resolver + " (lookup error or no usable addresses)"
+	}
 	defer func() {
 		logMu.Lock()
 		defer logMu.Unlock()
 		loggingDone = true
 		if activeLookup != "" && ctx.Err() != nil {
-			dnsFailures = append(dnsFailures, activeLookup)
+			dnsDiagnostics = append(dnsDiagnostics, failureDiagnostic(activeLookup))
 		}
-		for _, resolver := range dnsFailures {
-			fmt.Fprintf(out, "%s: DNS lookup failed using %s (lookup error or no usable addresses)\n", renderProfileName(p.Name), resolver)
+		for _, diagnostic := range dnsDiagnostics {
+			fmt.Fprintf(out, "%s: %s\n", renderProfileName(p.Name), diagnostic)
 		}
 	}()
-	transport := fallbackTransport(ctx, u.Hostname(), c.FallbackDNS, func(resolver string, failed bool) {
+	transport := fallbackTransport(ctx, u.Hostname(), c.FallbackDNS, func(resolver string, event dnsLookupEvent) {
 		logMu.Lock()
 		defer logMu.Unlock()
-		if !loggingDone {
-			activeLookup = resolver
-			if failed {
-				dnsFailures = append(dnsFailures, resolver)
-				activeLookup = ""
+		if loggingDone {
+			return
+		}
+		switch event {
+		case dnsLookupStarted:
+			// Do not claim a new attempt after the request has expired.
+			if ctx.Err() == nil {
+				activeLookup = resolver
+				if resolver != "system resolver" {
+					dnsDiagnostics = append(dnsDiagnostics, "DNS lookup attempting "+resolver)
+				}
 			}
+		case dnsLookupFailed, dnsLookupSucceeded:
+			if activeLookup != resolver {
+				return
+			}
+			if event == dnsLookupFailed || ctx.Err() != nil {
+				dnsDiagnostics = append(dnsDiagnostics, failureDiagnostic(resolver))
+			} else if resolver != "system resolver" {
+				dnsDiagnostics = append(dnsDiagnostics, "DNS lookup succeeded using "+resolver)
+			}
+			activeLookup = ""
 		}
 	})
 	defer transport.CloseIdleConnections()

@@ -21,8 +21,8 @@ func TestCLIDNSFailureDiagnostics(t *testing.T) {
 			j.write(profile("dns", "desec", endpoint))
 			j.fallback(first.address, second.address)
 			out := j.run(0)
-			systemLog := `"dns": DNS lookup failed using system resolver`
-			fallbackLog := fmt.Sprintf(`"dns": DNS lookup failed using fallback resolver %q`, first.address)
+			systemLog := `dns: DNS lookup failed using system resolver`
+			fallbackLog := fmt.Sprintf(`dns: DNS lookup failed using fallback resolver %q`, first.address)
 			a, b := strings.Index(out, systemLog), strings.Index(out, fallbackLog)
 			if a < 0 || b <= a || strings.Count(out, "DNS lookup failed using") != 2 {
 				t.Fatalf("missing/incorrect DNS diagnostics: %s", out)
@@ -62,7 +62,7 @@ func TestCLIDNSDeadlineDiagnostics(t *testing.T) {
 			if stallSystem {
 				want = 1
 			}
-			if strings.Count(out, "DNS lookup failed using") != want || !strings.Contains(out, "system resolver") {
+			if strings.Count(out, "DNS lookup failed using") != want || !strings.Contains(out, "system resolver") || strings.Contains(out, "DNS lookup succeeded") || (stallSystem && strings.Contains(out, "fallback resolver")) {
 				t.Fatalf("missing deadline diagnostic: %s", out)
 			}
 		})
@@ -75,7 +75,7 @@ func TestCLISuccessfulDNSDoesNotLogFailure(t *testing.T) {
 	endpoint, _ := trustedProvider(t, func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "good") })
 	j := newJourney(t)
 	j.write(profile("dns", "desec", endpoint))
-	if out := j.run(0); strings.Contains(out, "DNS lookup failed") {
+	if out := j.run(0); strings.Contains(out, "DNS lookup") || strings.Contains(out, "fallback resolver") {
 		t.Fatal(out)
 	}
 }

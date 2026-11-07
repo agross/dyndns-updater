@@ -22,7 +22,7 @@ func TestCLIMappingNames(t *testing.T) {
 	defer srv.Close()
 	name := "Home DNS"
 	j.write(namedProfile(name, srv.URL))
-	want := "\"Home DNS\": interface \"wan\" detected IPv4 192.0.2.10\n\"Home DNS\": updating provider: no confirmed state\n\"Home DNS\": confirmed 192.0.2.10\n"
+	want := "Home DNS: interface \"wan\" detected IPv4 192.0.2.10\nHome DNS: updating provider: no confirmed state\nHome DNS: confirmed 192.0.2.10\n"
 	if got := j.run(0); got != want {
 		t.Fatalf("output=%q want=%q", got, want)
 	}
@@ -30,7 +30,7 @@ func TestCLIMappingNames(t *testing.T) {
 		t.Fatal("name not retained across state and notification")
 	}
 	j.write(namedProfile(strconv.Quote(name), srv.URL))
-	if got := j.run(0); got != "\"Home DNS\": interface \"wan\" detected IPv4 192.0.2.10\n\"Home DNS\": skipping update: address unchanged and refresh not due\n\"Home DNS\": unchanged\n" {
+	if got := j.run(0); got != "Home DNS: interface \"wan\" detected IPv4 192.0.2.10\nHome DNS: skipping update: address unchanged and refresh not due\nHome DNS: unchanged\n" {
 		t.Fatalf("reuse output=%q", got)
 	}
 	if calls != 1 || len(j.mails) != 1 {
@@ -87,7 +87,7 @@ func TestCLISafeNameRenderingAndOrder(t *testing.T) {
 	names := []string{"z: \\\"quoted", "[error] Bcc: person", " Home DNS "}
 	j.write(namedProfile(strconv.Quote(names[0]), srv.URL+"/bad") + namedProfile(strconv.Quote(names[1]), srv.URL+"/good") + namedProfile(strconv.Quote(names[2]), srv.URL+"/first"))
 	out := j.run(1)
-	summary := strconv.Quote(names[2]) + ": confirmed 192.0.2.10\n" + strconv.Quote(names[1]) + ": confirmed 192.0.2.10\n" + strconv.Quote(names[0]) + ": provider rejected update or returned malformed success\n"
+	summary := names[2] + ": confirmed 192.0.2.10\n" + names[1] + ": confirmed 192.0.2.10\n" + names[0] + ": provider rejected update or returned malformed success\n"
 	if !strings.HasSuffix(out, summary) || len(j.mails) != 1 || j.mails[0] != "Summary generated at: 2026-01-01T00:00:00Z\n"+names[2]+": confirmed 192.0.2.10\n"+names[1]+": confirmed 192.0.2.10\n"+names[0]+": provider rejected update or returned malformed success\n" || strings.Join(requests, ",") != "/first,/good,/bad" {
 		t.Fatalf("ordering/rendering: output=%q mail=%q requests=%v", out, j.mails, requests)
 	}

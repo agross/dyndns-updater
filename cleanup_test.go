@@ -62,11 +62,11 @@ func TestCLIProfileCleanup(t *testing.T) {
 			if retained != confirmed || calls["/removed"] != 1 {
 				t.Fatal("retained confirmation changed", s, calls)
 			}
-			if mode == "unavailable" && out != "\"keep\": interface \"wan\" IPv4 unavailable\n" {
+			if mode == "unavailable" && out != "keep: interface \"wan\" IPv4 unavailable\n" {
 				t.Fatalf("output=%q", out)
 			}
 			if mode == "unchanged" {
-				want := "\"keep\": interface \"wan\" detected IPv4 192.0.2.10\n\"keep\": skipping update: address unchanged and refresh not due\n\"keep\": unchanged\n"
+				want := "keep: interface \"wan\" detected IPv4 192.0.2.10\nkeep: skipping update: address unchanged and refresh not due\nkeep: unchanged\n"
 				if out != want {
 					t.Fatalf("output=%q want=%q", out, want)
 				}
@@ -221,7 +221,7 @@ func TestBuiltCLICleanupRetriesRemovedProfileMail(t *testing.T) {
 	}
 	for i := 0; i < 2; i++ {
 		out, err := exec.Command(bin, "--config", cfg).CombinedOutput()
-		want := "\"dns\": interface \"lo\" detected IPv4 127.0.0.1\n\"dns\": skipping update: address unchanged and refresh not due\n\"dns\": unchanged\n"
+		want := "dns: interface \"lo\" detected IPv4 127.0.0.1\ndns: skipping update: address unchanged and refresh not due\ndns: unchanged\n"
 		if err != nil || string(out) != want {
 			t.Fatalf("cleanup/retry: %v %q", err, out)
 		}

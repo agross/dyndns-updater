@@ -24,7 +24,7 @@ func TestCLINotificationNamesAndRestart(t *testing.T) {
 	for _, name := range names {
 		config += namedProfile(strconv.Quote(name), srv.URL)
 		mail += name + ": confirmed 192.0.2.10\n"
-		cli += strconv.Quote(name) + ": confirmed 192.0.2.10\n"
+		cli += name + ": confirmed 192.0.2.10\n"
 	}
 	j.write(config)
 	j.mailError = true

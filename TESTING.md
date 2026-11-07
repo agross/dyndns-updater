@@ -6,6 +6,20 @@ mail. Local HTTP fake providers, temporary configuration/state, synthetic
 interface inputs, controlled timestamps, and fake sendmail executables exercise
 observable CLI and provider boundaries.
 
+## Profile and DNS logging acceptance (#32)
+
+- `TestCLIFallbackResolutionTrace` checks exact ordered attempt/failure/success
+  output with local DNS and HTTPS fixtures, first/later success, unusable/empty
+  answers, exhaustion, disabled fallback and timeout without later attempts.
+  Names with spaces, Unicode, quotes, literal backslashes and percent text are
+  rendered literally; credentials, URLs and raw errors stay out of diagnostics.
+- System-success and overlapping DNS/HTTP deadline tests distinguish DNS recovery
+  from provider confirmation. Deadline diagnostics retain the active resolver and
+  never invent DNS success. DNS traces stay out of notification summaries.
+- Existing ordinary/space-name, built-CLI, unusual-name, invalid-name/state,
+  credential-safety and independent-profile journeys retain their assertions,
+  with only CLI prefix expectations changed. State and mail bytes are unchanged.
+
 ## Fallback DNS acceptance (#4)
 
 `go test -run 'TestCLI.*Fallback' ./...` exercises the CLI entry point with
@@ -121,7 +135,7 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
 ## Notification name presentation (#22)
 
 - `TestCLINotificationNamesAndRestart` asserts exact unquoted all-profile mail,
-  unchanged escaped CLI results, sorted spaces/punctuation/quotes/backslashes/
+  literal unquoted CLI results, sorted spaces/punctuation/quotes/backslashes/
   colons/Unicode, distinct quoted and unquoted names, and durable retry after
   failed submission without repeating providers.
 - `TestCLINotificationPendingCompatibility` delivers old quoted, legacy and new
@@ -154,7 +168,7 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
   local HTTP service and executable fake sendmail, asserting exact output, full
   mail content, persisted names, no-op reuse, and rejection without side effects.
 - Existing process-kill, concurrency, checkpoint, notification retry, provider
-  contract, diagnostic, and journey tests now use mapping configuration and quoted
+  contract, diagnostic, and journey tests now use mapping configuration and unquoted
   output. They continue to exercise the same durability/delivery boundaries.
 
 ## Provider retry acceptance (#16)

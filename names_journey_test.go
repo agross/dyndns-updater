@@ -68,7 +68,7 @@ func TestCLIExactDecodedNameIdentity(t *testing.T) {
 	// A changed identity still updates even with the same name and address.
 	j.write(strings.Replace(namedProfile(`"Home DNS"`, srv.URL), "example.invalid", "changed.invalid", 1))
 	out := j.run(0)
-	if calls != len(names)+1 || !strings.Contains(out, `"Home DNS": updating provider: profile identity changed`) {
+	if calls != len(names)+1 || !strings.Contains(out, `Home DNS: updating provider: profile identity changed`) {
 		t.Fatal("identity change suppressed")
 	}
 	j.now = j.now.Add(601 * time.Hour)
@@ -111,7 +111,7 @@ func TestBuiltCLIMappingNameAndFakeMail(t *testing.T) {
 		if i == 1 {
 			decision, result = "skipping update: address unchanged and refresh not due", "unchanged"
 		}
-		q := strconv.Quote(name)
+		q := name
 		want := q + ": interface \"lo\" detected IPv4 127.0.0.1\n" + q + ": " + decision + "\n" + q + ": " + result + "\n"
 		if string(b) != want {
 			t.Fatalf("output=%q want=%q", b, want)

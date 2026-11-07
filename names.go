@@ -140,10 +140,6 @@ func validSummaryStatus(status string) bool {
 			return true
 		}
 	}
-	// Preserve durable messages queued by older binaries verbatim.
-	if status == "HE abuse response; address assumed accepted; retry on address/configuration change or when refresh is due" {
-		return true
-	}
 	for _, prefix := range []string{"deSEC rate limited; retry at ", "HE abuse response; update unconfirmed; retry at "} {
 		if value, ok := strings.CutPrefix(status, prefix); ok {
 			deadline, err := time.Parse(time.RFC3339, value)

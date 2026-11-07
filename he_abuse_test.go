@@ -132,7 +132,7 @@ func TestCLIHEAbuseMalformedStatePreserved(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, change := range []string{"missing-deadline", "bad-fingerprint", "not-failing", "malformed-deadline", "invalid-pending"} {
+	for _, change := range []string{"missing-deadline", "missing-deadline-with-confirmation", "bad-fingerprint", "not-failing", "malformed-deadline", "invalid-pending", "unsupported-pending"} {
 		var s diskState
 		if err := json.Unmarshal(original, &s); err != nil {
 			t.Fatal(err)
@@ -141,6 +141,11 @@ func TestCLIHEAbuseMalformedStatePreserved(t *testing.T) {
 		switch change {
 		case "missing-deadline":
 			p.Retry.Until = time.Time{}
+		case "missing-deadline-with-confirmation":
+			p.Retry.Until = time.Time{}
+			p.Address, p.Updated = j.ip, j.now
+		case "unsupported-pending":
+			s.Pending = []string{"he: HE abuse response; address assumed accepted; retry on address/configuration change or when refresh is due\n"}
 		case "bad-fingerprint":
 			p.Retry.Key = "bad"
 		case "not-failing":
@@ -167,67 +172,5 @@ func TestCLIHEAbuseMalformedStatePreserved(t *testing.T) {
 		if string(after) != string(data) || calls != 1 || len(j.mailAttempts) != 1 {
 			t.Fatalf("malformed state not preserved: %s", change)
 		}
-	}
-}
-
-func TestCLIHEAbuseLegacyMigration(t *testing.T) {
-	for _, expired := range []bool{false, true} {
-		t.Run(fmt.Sprint(expired), func(t *testing.T) {
-			j := newJourney(t)
-			calls := 0
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				calls++
-				fmt.Fprint(w, "nochg "+r.URL.Query().Get("myip"))
-			}))
-			defer srv.Close()
-			j.write(profile("he", "tunnelbroker", srv.URL))
-			j.run(0)
-			path := filepath.Join(j.dir, "state.json")
-			data, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var s diskState
-			if err := json.Unmarshal(data, &s); err != nil {
-				t.Fatal(err)
-			}
-			p := s.Profiles["he"]
-			p.Failing = true
-			// Historical retry fields are valid fixed-width digests; migration does not
-			// depend on their matching the current credentials.
-			p.Retry = &retryState{Kind: "he-abuse", Salt: strings.Repeat("a", 64), Key: strings.Repeat("b", 64)}
-			s.Profiles["he"] = p
-			legacy := "he: HE abuse response; address assumed accepted; retry on address/configuration change or when refresh is due\n"
-			s.Pending = []string{legacy}
-			data, err = json.Marshal(s)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := os.WriteFile(path, data, 0600); err != nil {
-				t.Fatal(err)
-			}
-			deadline := p.Updated.Add(15 * time.Minute)
-			j.now = deadline.Add(-time.Nanosecond)
-			if expired {
-				j.now = deadline
-			}
-			if !expired {
-				j.run(1)
-				migrated := j.state().Profiles["he"]
-				if calls != 1 || migrated.Address != "" || !migrated.Updated.IsZero() || !migrated.Failing || !migrated.Retry.Until.Equal(deadline) || !strings.HasSuffix(j.mails[1], legacy) {
-					t.Fatal("legacy assumed state claimed confirmation or lost deadline/mail")
-				}
-				j.run(1)
-				if calls != 1 || len(j.mails) != 2 {
-					t.Fatal("migration suppression not durable/quiet")
-				}
-				j.now = deadline
-			}
-			j.run(0)
-			recovered := j.state().Profiles["he"]
-			if calls != 2 || recovered.Failing || recovered.Retry != nil || recovered.Address != j.ip || len(j.mails) != 3 {
-				t.Fatal("legacy state did not recover at deadline")
-			}
-		})
 	}
 }

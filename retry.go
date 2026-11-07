@@ -85,11 +85,7 @@ func validRetry(r *retryState, p profileState) bool {
 		if !hexDigest(r.Salt) || !hexDigest(r.Key) {
 			return false
 		}
-		if r.Until.IsZero() {
-			// Legacy records stored an assumed address and response timestamp.
-			return p.Address != "" && !p.Updated.IsZero() && p.Updated.Add(15*time.Minute).Year() <= 9999
-		}
-		return r.Until.Year() >= 1 && r.Until.Year() <= 9999
+		return !r.Until.IsZero() && r.Until.Year() >= 1 && r.Until.Year() <= 9999
 	default:
 		return false
 	}

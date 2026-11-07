@@ -6,6 +6,41 @@ mail. Local HTTP fake providers, temporary configuration/state, synthetic
 interface inputs, controlled timestamps, and fake sendmail executables exercise
 observable CLI and provider boundaries.
 
+## Fallback DNS acceptance (#4)
+
+`go test -run 'TestCLI.*Fallback' ./...` exercises the CLI entry point with
+synthetic interface addresses, temporary configuration/state, fake mail, local
+UDP/TCP DNS servers and a locally trusted HTTPS provider. The system resolver is
+redirected to a local fixture in-process; no system DNS settings are modified.
+These tests are intentionally nonparallel while replacing process-global default
+resolver/transport values, and restore them afterward.
+
+- `TestCLIFallbackDNSOrderAndBoundaries` asserts system-first/first/later fallback
+  requests, negative/empty/SERVFAIL/unusable answers, UDP-to-TCP truncation,
+  original HTTP Host/TLS SNI, deSEC authentication/IPv6 preservation, no duplicate
+  provider request and no fallback for HTTP/provider failures or redirects.
+- `TestCLIFallbackFailureRecovery` retains confirmed addresses/times on DNS failure,
+  allows another profile to confirm, retries across invocations without a new
+  provider cooldown, and checks failure-mail deduplication and recovery mail.
+- Deadline tests cover unresponsive DNS, cancellation, no attempts beyond expiry,
+  and one shared budget for successful DNS followed by a slow HTTP response.
+- TLS tests reject untrusted certificates and wrong hostnames; connection failures
+  do not trigger fallback. Proxy tests retain HTTPS CONNECT policy and never
+  bypass a failed proxy or perform provider DNS locally when a proxy owns it.
+- IPv6 loopback tests contact a bracketed IPv6 DNS endpoint (skipping only when
+  IPv6 loopback is unavailable); literal provider endpoints do not query DNS.
+- Unavailable/omitted-list tests cover a closed local resolver, later success and
+  unchanged system-only failure behavior when fallback is removed.
+- Configuration tests accept IPv4/IPv6 literals with default/explicit ports and
+  reject invalid later entries before interface/provider/mail/state side effects.
+
+The full existing suite continues to exercise locking, atomic checkpoints, retry
+restrictions, independent profiles and built-CLI/fake-sendmail journeys. No live
+provider, resolver, mail or gateway configuration is used for fallback verification.
+An unreachable resolver may consume the entire shared request budget, so later
+fallbacks are not guaranteed to run; this is documented rather than hidden by a
+per-resolver timeout reset.
+
 ## CI and artifact verification
 
 For workflow changes, run `actionlint .github/workflows/*.yml` and `git diff --check` in addition to formatting, vet, and race tests. Verify that CI's `push` trigger includes only `main`, `pull_request` remains enabled, and `workflow_call` still accepts the release commit ref. The release workflow must continue to pass `needs.resolve.outputs.commit` to CI and require both resolution and tests before publication. Do not trigger a release to test this configuration.

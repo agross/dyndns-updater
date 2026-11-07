@@ -56,7 +56,9 @@ func providerUpdate(c Config, p Profile, ip string, now func() time.Time) error 
 		q.Set("myip", ip)
 	}
 	u.RawQuery = q.Encode()
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return errors.New("invalid provider request")
 	}
@@ -67,6 +69,11 @@ func providerUpdate(c Config, p Profile, ip string, now func() time.Time) error 
 		req.SetBasicAuth(p.Username, p.Password)
 	}
 	client := &http.Client{Timeout: c.timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	if len(c.FallbackDNS) > 0 {
+		transport := fallbackTransport(ctx, u.Hostname(), c.FallbackDNS)
+		defer transport.CloseIdleConnections()
+		client.Transport = transport
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return errors.New("provider transport failure (DNS, connection, or TLS)")

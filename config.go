@@ -22,6 +22,7 @@ type Config struct {
 	Sendmail         string   `yaml:"sendmail"`
 	Recipient        string   `yaml:"recipient"`
 	Profiles         Profiles `yaml:"profiles"`
+	FallbackDNS      []string `yaml:"fallback_dns"`
 	refresh, timeout time.Duration
 }
 type Profile struct {
@@ -70,6 +71,13 @@ func loadConfig(path string) (Config, error) {
 	}
 	if !filepath.IsAbs(c.State) || !filepath.IsAbs(c.Sendmail) || len(c.Profiles) == 0 || strings.ContainsAny(c.Recipient, "\r\n\x00") || c.Recipient == "" || strings.HasPrefix(c.Recipient, "-") {
 		return c, errors.New("invalid state, sendmail, recipient, or empty profiles")
+	}
+	for i, server := range c.FallbackDNS {
+		address, err := resolverAddress(server)
+		if err != nil {
+			return c, errors.New("invalid fallback DNS address (literal IP with optional port required)")
+		}
+		c.FallbackDNS[i] = address
 	}
 	seen := map[string]bool{}
 	for i := range c.Profiles {

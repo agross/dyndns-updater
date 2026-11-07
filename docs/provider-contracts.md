@@ -92,12 +92,11 @@ notifies recovery. Repeated abuse or suppression does not create new failure mai
 Other profiles continue independently. Explicit state removal clears the pause
 under existing reset semantics; do not use resets to defeat throttling.
 
-Valid legacy `he-abuse` records with zero `until` derive the deadline from stored
-`updated + 15 minutes`. Clear their assumed address and timestamp: neither was
-confirmed. Active derived deadlines suppress; expired ones retry immediately.
-Migration preserves failure, queued messages (including historical assumed-status
-text), validation and atomic persistence. Credential-only rotation never
-invalidates an already-successful confirmation.
+Legacy HE migration is intentionally unsupported per the owner's review on #35.
+`he-abuse` records require a nonzero deadline; historical assumed-acceptance
+notification text is not accepted. Unsupported state is rejected and preserved
+without provider or mail activity. Credential-only rotation never invalidates an
+already-successful confirmation.
 
 A single valid Retry-After delta or date is preferred over the two-minute fallback,
 even if shorter. Missing, duplicate, negative, fractional, nonnumeric, or out-of-range
@@ -122,8 +121,8 @@ replaced by a shared wait; after correction, any surviving shared wait still app
 Retry state adds optional validated fields to version-1 profile records. Unknown
 codes, inconsistent fields, missing fingerprints/deadlines, duplicate JSON keys,
 or other invalid state stop the run without overwriting the file or contacting
-providers/mail. Previously queued summaries remain valid and retry in order,
-including legacy statuses. Checkpoints and atomic replacement retain the existing
+providers/mail. Queued summaries matching the supported status grammar retry in
+order without rewriting their content. Checkpoints and atomic replacement retain the existing
 lock, private modes, interruption recovery and at-least-once mail semantics.
 Fingerprints use a per-restriction random 256-bit salt and SHA-256 over structured
 identity and only the credentials used by that provider. They are not reversible,

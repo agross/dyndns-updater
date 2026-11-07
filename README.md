@@ -154,9 +154,9 @@ confirmation.
   address, credential, identity, or refresh changes. At or after expiry, retry the
   current address; another `abuse` starts a fresh 15-minute wait. Only confirmed
   success clears failure and notifies recovery. Other profiles continue normally.
-  This delay is a project decision (#34), not a documented HE guarantee. Valid
-  legacy zero-deadline abuse records derive their deadline from `updated + 15m`;
-  their assumed address/time are cleared, not migrated as confirmation.
+  This delay is a project decision (#34), not a documented HE guarantee. Legacy
+  zero-deadline abuse records and historical assumed-acceptance notification text
+  are unsupported and rejected without modifying state; no migration is performed.
   The configurable refresh policy remains; review the HE production caveat in
   the provider contracts.
 - Other responses and transport failures remain credential-safe failures, retried

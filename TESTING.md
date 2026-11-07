@@ -192,12 +192,12 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
   response-time UTC deadlines with subsecond/non-UTC clocks, preserved prior
   confirmation, independent profiles, durable failed mail, repeated abuse renewing
   the deadline, exact-boundary recovery and quiet subsequent runs.
-  `TestCLIHEAbuseLegacyMigration` checks active/expired legacy deadlines, removal
-  of assumed confirmations, and unchanged delivery of historical queued mail.
   `TestBuiltCLIHEAbuseSurvivesRestart` executes separate processes with loopback
   HTTP and fake sendmail, checking the receipt-time deadline and one failure mail.
   `TestCLIHEAbuseMalformedStatePreserved` rejects invalid deadlines, fingerprints,
-  failure flags and queued statuses without provider/mail activity or file changes.
+  failure flags and queued statuses without provider/mail activity or file changes,
+  including zero-deadline records with an address and historical HE assumed-status
+  messages. Legacy HE migration is intentionally unsupported per PR #35 review.
   `TestCLIUnverifiedHEErrorsAreNotAssumedAccepted` rejects
   unknown tokens, misleading abuse/success, oversized bodies and address mismatch
   without inventing retry rules for unknown responses or accepting unconfirmed addresses.

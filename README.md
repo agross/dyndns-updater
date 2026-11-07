@@ -31,8 +31,11 @@ not included (tracked in #3).
 
 ### Fallback DNS
 
-By default the normal system resolver is used, unchanged. Optionally configure
-an ordered global list of literal DNS server IP addresses:
+System DNS is always tried first. If `fallback_dns` is omitted, failed lookups
+fall back to Cloudflare (`1.1.1.1`), Google (`8.8.8.8`), then Quad9 (`9.9.9.9`),
+all on port 53. Existing configurations need no migration but gain this default
+fallback behavior. A nonempty list replaces these defaults with your chosen
+ordered literal DNS server IP addresses:
 
 ```yaml
 fallback_dns:
@@ -42,9 +45,9 @@ fallback_dns:
   - "[2001:db8::54]:5353" # IPv6 with a port requires brackets
 ```
 
-These documentation addresses are examples, not working public resolvers. Omit
-`fallback_dns` (or use `[]`) to disable fallback. Hostnames, malformed literals,
-zone identifiers, and ports outside 1–65535 are rejected. The entire list is
+These documentation addresses are examples, not working public resolvers. Set
+`fallback_dns: []` to disable fallback and use only system DNS. Hostnames,
+malformed literals, zone identifiers, and ports outside 1–65535 are rejected. The entire list is
 validated before state locking/writes, provider requests, or mail submission.
 Changing this list does not change profile identity or invalidate confirmed state.
 

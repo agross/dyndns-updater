@@ -29,8 +29,14 @@ resolver/transport values, and restore them afterward.
   bypass a failed proxy or perform provider DNS locally when a proxy owns it.
 - IPv6 loopback tests contact a bracketed IPv6 DNS endpoint (skipping only when
   IPv6 loopback is unavailable); literal provider endpoints do not query DNS.
-- Unavailable/omitted-list tests cover a closed local resolver, later success and
-  unchanged system-only failure behavior when fallback is removed.
+- `TestCLIFallbackDefaultsAndOverrides` verifies omitted configuration uses
+  `1.1.1.1:53`, `8.8.8.8:53`, then `9.9.9.9:53`; explicit `fallback_dns: []`
+  disables fallback; a nonempty custom list replaces the defaults. Default
+  resolver dialing is redirected to local fixtures, with unknown destinations
+  rejected, so these tests never contact public DNS. CLI outcomes, provider
+  requests and persisted confirmations are checked as well as ordered endpoints.
+- Unavailable/disabled-list tests cover a closed local resolver, later success and
+  system-only failure behavior when an explicit empty list disables fallback.
 - Configuration tests accept IPv4/IPv6 literals with default/explicit ports and
   reject invalid later entries before interface/provider/mail/state side effects.
 

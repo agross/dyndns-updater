@@ -4,6 +4,9 @@ refresh: 600h # 25 days; Go duration syntax (h, m, s), not "25d"
 timeout: 30s # per provider request and sendmail invocation
 sendmail: /usr/sbin/sendmail
 recipient: root
+# Optional literal display name; requires sendmail -F full-name support.
+# The MTA still chooses sender address/envelope sender. No app-side templates.
+# sender_name: 'dyndns-updater on gateway-home'
 # System DNS is always tried first. Omitted fallback_dns defaults to
 # 1.1.1.1, 8.8.8.8, then 9.9.9.9 (all port 53).
 # One request timeout covers DNS, all fallbacks, TLS and response together.

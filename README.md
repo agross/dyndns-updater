@@ -94,10 +94,9 @@ The state file records confirmed addresses, timestamps, hashed profile identity,
 provider failure state, and pending notification content, never credentials.
 Provider, target, interface, or endpoint changes invalidate a profile's old state;
 credential-only changes do not invalidate confirmed success, but release intervention
-restrictions. A failed update retains its last confirmed address, **except HE
-`abuse`**: per the owner decision in #16, the attempted address and timestamp advance
-as assumed accepted while the profile remains failing. This is not a strict
-provider confirmation.
+restrictions. A failed update, including HE `abuse`, retains its last confirmed
+address and timestamp. An active HE pause survives all configuration changes,
+although identity changes still invalidate the old confirmation.
 After loading a valid configuration and state, each run removes confirmations for
 names absent from the configuration while holding the state lock. Cleanup uses
 the existing atomic writes even when all retained profiles skip or report errors;
@@ -130,7 +129,7 @@ provider update so an independent success survives interruption before a later
 profile finishes. A crash after provider acceptance but before state persistence
 can cause another safe update on restart. A new address appearing during an update
 is detected by the next run; only the requested address is recorded on strict
-confirmation (or the explicit HE `abuse` assumption).
+confirmation.
 
 ### Provider retry restrictions
 
@@ -150,14 +149,20 @@ confirmation (or the explicit HE `abuse` assumption).
   delay unrelated accounts conservatively. Already-successful no-op profiles
   remain successful. Token/target changes do not bypass a surviving shared pause.
 - HE HTTP 200 with exactly `abuse` (surrounding whitespace allowed) reports failure
-  and assumes the requested address was accepted. Same-address repeats stay
-  suppressed until refresh is due or credentials/profile identity change.
-  An address change retries immediately. The existing configurable refresh policy
-  remains; review the HE production caveat in the provider contracts.
+  without confirming the requested address. Persist a UTC deadline 15 minutes
+  after receipt; suppress this profile until that deadline, even across restarts,
+  address, credential, identity, or refresh changes. At or after expiry, retry the
+  current address; another `abuse` starts a fresh 15-minute wait. Only confirmed
+  success clears failure and notifies recovery. Other profiles continue normally.
+  This delay is a project decision (#34), not a documented HE guarantee. Valid
+  legacy zero-deadline abuse records derive their deadline from `updated + 15m`;
+  their assumed address/time are cleared, not migrated as confirmation.
+  The configurable refresh policy remains; review the HE production caveat in
+  the provider contracts.
 - Other responses and transport failures remain credential-safe failures, retried
   on the next invocation without an invented provider-specific delay.
 
-Suppression returns nonzero with an actionable reason (and deadline for 429),
+Suppression returns nonzero with an actionable reason (and deadline for 429 and HE abuse),
 without sending an update. Restriction state survives restarts under the existing
 lock and atomic checkpoints. Intervention/HE restrictions store a random salt and
 one-way SHA-256 fingerprint of relevant configuration and credentials, never the

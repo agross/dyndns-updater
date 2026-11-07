@@ -135,14 +135,20 @@ func pendingSummaryName(line string) (string, bool) {
 }
 
 func validSummaryStatus(status string) bool {
-	for _, kind := range []string{"desec-auth", "desec-hostname", "desec-target", "he-abuse"} {
+	for _, kind := range []string{"desec-auth", "desec-hostname", "desec-target"} {
 		if status == retryMessage(kind, time.Time{}) {
 			return true
 		}
 	}
-	if value, ok := strings.CutPrefix(status, "deSEC rate limited; retry at "); ok {
-		deadline, err := time.Parse(time.RFC3339, value)
-		return err == nil && deadline.UTC().Format(time.RFC3339) == value
+	// Preserve durable messages queued by older binaries verbatim.
+	if status == "HE abuse response; address assumed accepted; retry on address/configuration change or when refresh is due" {
+		return true
+	}
+	for _, prefix := range []string{"deSEC rate limited; retry at ", "HE abuse response; update unconfirmed; retry at "} {
+		if value, ok := strings.CutPrefix(status, prefix); ok {
+			deadline, err := time.Parse(time.RFC3339, value)
+			return err == nil && deadline.UTC().Format(time.RFC3339) == value
+		}
 	}
 	switch status {
 	case "unchanged", "invalid provider request", "invalid provider response", "provider transport failure (DNS, connection, or TLS)", "provider rejected update or returned malformed success":

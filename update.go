@@ -146,7 +146,7 @@ func providerUpdate(c Config, p Profile, ip string, now func() time.Time, out io
 	}
 	fields := strings.Fields(string(body))
 	if p.Provider == "tunnelbroker" && strings.TrimSpace(string(body)) == "abuse" {
-		return providerFailure{kind: "he-abuse"}
+		return providerFailure{kind: "he-abuse", until: now().UTC().Add(15 * time.Minute)}
 	}
 	if p.Provider == "desec" {
 		if len(fields) == 1 && fields[0] == "good" {
@@ -203,7 +203,13 @@ func update(c Config, d dependencies, out io.Writer) error {
 		old := s.Profiles[p.Name]
 		id := identity(p)
 		if old.Identity != id {
+			// Confirmation belongs to the identity, but an HE pause belongs to
+			// the profile name and survives all configuration changes.
+			previous := old
 			old = profileState{Identity: id}
+			if previous.Retry != nil && previous.Retry.Kind == "he-abuse" {
+				old.Failing, old.Retry = previous.Failing, previous.Retry
+			}
 		}
 		current := old
 		ip, e := d.address(p.Interface)
@@ -229,7 +235,7 @@ func update(c Config, d dependencies, out io.Writer) error {
 			reason = "refresh due"
 		}
 		status := "unchanged"
-		blocked := blockedRetry(s, p, old, ip, d.now(), c.refresh)
+		blocked := blockedRetry(s, p, old, d.now())
 		if blocked != nil && reason != "" {
 			reason = "retry restricted"
 		}
@@ -250,12 +256,6 @@ func update(c Config, d dependencies, out io.Writer) error {
 					current.Retry, retryErr = newRetry(p, failure)
 					if retryErr != nil {
 						return retryErr
-					}
-					if failure.kind == "he-abuse" {
-						// Owner decision #16 explicitly treats abuse as accepted,
-						// while retaining failure exit/notification semantics.
-						current.Address = ip
-						current.Updated = d.now().UTC()
 					}
 				}
 			}

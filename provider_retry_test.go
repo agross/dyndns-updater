@@ -194,7 +194,7 @@ func TestCLIDeSECRetryDeadline(t *testing.T) {
 	}
 }
 
-func TestCLIHEAbuseAcceptedButFailing(t *testing.T) {
+func TestCLIHEAbuseUnconfirmedAndFailing(t *testing.T) {
 	j := newJourney(t)
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -209,10 +209,12 @@ func TestCLIHEAbuseAcceptedButFailing(t *testing.T) {
 	j.write(profile("tunnel", "tunnelbroker", srv.URL))
 	j.run(1)
 	j.run(1)
-	if calls != 1 || j.state().Profiles["tunnel"].Address != j.ip || len(j.mails) != 1 {
-		t.Fatal("abuse must advance address but suppress repeat and remain failing")
+	if calls != 1 || j.state().Profiles["tunnel"].Address != "" || len(j.mails) != 1 {
+		t.Fatal("abuse must remain unconfirmed, suppress repeat and remain failing")
 	}
 	j.ip = "192.0.2.20"
+	j.run(1)
+	j.now = j.now.Add(15 * time.Minute)
 	j.run(0)
 	if calls != 2 || len(j.mails) != 2 {
 		t.Fatal("changed address did not recover")

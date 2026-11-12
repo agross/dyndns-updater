@@ -436,7 +436,7 @@ updates real DNS or submits real mail.
 
 ## CI, releases, and dependencies
 
-GitHub Actions checks formatting, runs `go vet`, and runs the test suite with the race detector once per pull request update and on pushes to `main`. Pushes to other branches and tags do not start a separate CI run. The same checks are reusable by the manually triggered release workflow: a human selects an existing tag in the form `v1.2.3`, and the resolved release commit must pass CI before publication of Linux and macOS binaries for amd64 and arm64, plus SHA-256 checksums.
+GitHub Actions checks formatting, runs `go vet`, and runs the test suite with the race detector once per pull request update and on pushes to `main`. Pushes to other branches and tags do not start a separate CI run. The same checks are reusable by the manually triggered release workflow: a human supplies a release `version` in the form `v1.2.3` and an optional `commit` (SHA or Git revision). The commit defaults to `HEAD`, meaning the current tip of the repository default branch, and must be reachable from that branch. The resolved SHA must pass CI before publication of Linux and macOS binaries for amd64 and arm64, plus SHA-256 checksums. After CI succeeds, the workflow creates the version tag at that SHA; an existing tag is accepted only if it points to the same commit. Conflicting tags are rejected and never moved.
 
 ### Try a pull request build
 

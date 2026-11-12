@@ -98,7 +98,7 @@ func TestCLIHEAbuseResumeConditions(t *testing.T) {
 				case "endpoint":
 					from, to = srv.URL, srv.URL+"/new"
 				case "interface":
-					from, to = "interface: wan", "interface: changed"
+					from, to = "sources: [{if: wan}]", "sources: [{if: changed}]"
 				}
 				j.write(strings.ReplaceAll(base, from, to))
 				j.now = j.now.Add(15*time.Minute - time.Nanosecond)
@@ -117,7 +117,7 @@ func TestCLIHEAbuseResumeConditions(t *testing.T) {
 }
 
 func TestCLIUnverifiedHEErrorsAreNotAssumedAccepted(t *testing.T) {
-	for _, body := range []string{"badauth", "911", "dnserr", "abuse extra", "abuse\ngood 192.0.2.10", strings.Repeat(" ", 4096) + "abuse", "good 192.0.2.99", "abuse synthetic-secret"} {
+	for _, body := range []string{"badauth", "911", "dnserr", "abuse extra", "abuse\ngood 8.0.2.10", strings.Repeat(" ", 4096) + "abuse", "good 8.0.2.99", "abuse synthetic-secret"} {
 		t.Run(fmt.Sprint(len(body), body[:min(len(body), 16)]), func(t *testing.T) {
 			j := newJourney(t)
 			calls := 0

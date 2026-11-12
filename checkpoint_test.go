@@ -37,7 +37,7 @@ func TestInterruptedLaterProfileKeepsEarlierSuccess(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			b = append(b, []byte(strings.Replace(profile("second", "desec", srv.URL+"/second"), "interface: wan", "interface: lo", 1))...)
+			b = append(b, []byte(strings.Replace(profile("second", "desec", srv.URL+"/second"), "sources: [{if: wan}]", localDiscoverySetting(t), 1))...)
 			if err := os.WriteFile(cfg, b, 0600); err != nil {
 				t.Fatal(err)
 			}
@@ -58,7 +58,7 @@ func TestInterruptedLaterProfileKeepsEarlierSuccess(t *testing.T) {
 			}
 			// The first outcome is already committed, even though the second is blocked.
 			s, err := readState(state)
-			if err != nil || s.Profiles["dns"].Address != "127.0.0.1" || !s.Dirty {
+			if err != nil || s.Profiles["dns"].Address != "8.0.2.10" || !s.Dirty {
 				t.Fatal("earlier success/notification intent not checkpointed")
 			}
 			if err := cmd.Process.Kill(); err != nil {
@@ -69,7 +69,7 @@ func TestInterruptedLaterProfileKeepsEarlierSuccess(t *testing.T) {
 				// Remove the checkpointed profile after actual process termination.
 				// Restart must preserve Dirty while pruning its confirmation.
 				start := strings.Index(string(b), "profiles:\n") + len("profiles:\n")
-				config := string(b[:start]) + strings.Replace(profile("second", "desec", srv.URL+"/second"), "interface: wan", "interface: lo", 1)
+				config := string(b[:start]) + strings.Replace(profile("second", "desec", srv.URL+"/second"), "sources: [{if: wan}]", localDiscoverySetting(t), 1)
 				if err := os.WriteFile(cfg, []byte(config), 0600); err != nil {
 					t.Fatal(err)
 				}

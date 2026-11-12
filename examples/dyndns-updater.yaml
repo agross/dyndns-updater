@@ -1,7 +1,7 @@
 # Install as /etc/dyndns-updater.yaml, owned by root with mode 0600.
 state: /var/lib/dyndns-updater/state.json
 refresh: 600h # 25 days; Go duration syntax (h, m, s), not "25d"
-timeout: 30s # per provider request and sendmail invocation
+timeout: 30s # per web source, provider request and sendmail invocation
 sendmail: /usr/sbin/sendmail
 recipient: root
 # Optional literal display name; requires sendmail -F full-name support.
@@ -11,7 +11,7 @@ recipient: root
 # 1.1.1.1, 8.8.8.8, then 9.9.9.9 (all port 53).
 # One request timeout covers DNS, all fallbacks, TLS and response together.
 # Set fallback_dns: [] to disable; a nonempty list replaces the defaults.
-# Defaults send provider hostname queries to Cloudflare, Google and Quad9 as needed.
+# Defaults send provider/discovery hostname queries to Cloudflare, Google and Quad9 as needed.
 # fallback_dns: []
 # Custom examples below are documentation-only IPs.
 # fallback_dns:
@@ -22,12 +22,20 @@ recipient: root
 profiles:
   gateway-dns:
     provider: desec
-    interface: telekom
+    sources:
+      - if: telekom # private/unavailable interface advances to web discovery
+      - web: ipify
+      # Other named services: ifconfig.me, he
+      # - url: https://discovery.example.invalid/ip
     target: gateway.example.invalid
     token: REPLACE_WITH_DESEC_TOKEN
   "Gateway tunnel":
     provider: tunnelbroker
-    interface: telekom
+    sources:
+      - if: telekom # private/unavailable interface advances to web discovery
+      - web: ipify
+      # Other named services: ifconfig.me, he
+      # - url: https://discovery.example.invalid/ip
     target: "123456" # Tunnel ID
     username: REPLACE_WITH_TUNNELBROKER_USERNAME
     password: REPLACE_WITH_TUNNEL_UPDATE_KEY

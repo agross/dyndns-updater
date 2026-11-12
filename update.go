@@ -42,7 +42,10 @@ func interfaceIPv4(name string) (string, error) {
 	return "", errors.New("interface has no IPv4 address")
 }
 func identity(p Profile) string {
-	b, _ := json.Marshal([]string{p.Provider, p.Target, p.Interface, p.Endpoint})
+	b, _ := json.Marshal(struct {
+		Provider, Target, Endpoint string
+		Sources                    Sources
+	}{p.Provider, p.Target, p.Endpoint, p.Sources})
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
 }
@@ -70,54 +73,8 @@ func providerUpdate(c Config, p Profile, ip string, now func() time.Time, out io
 		req.SetBasicAuth(p.Username, p.Password)
 	}
 	client := &http.Client{Timeout: c.timeout, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	// HTTP dialing can finish asynchronously after cancellation. Buffer safe,
-	// fixed diagnostics under a mutex and write only on this request's goroutine.
-	// Never log raw DNS errors, URLs, queries, or credentials.
-	var logMu sync.Mutex
-	var dnsDiagnostics []string
-	activeLookup := ""
-	loggingDone := false
-	failureDiagnostic := func(resolver string) string {
-		return "DNS lookup failed using " + resolver + " (lookup error or no usable addresses)"
-	}
-	defer func() {
-		logMu.Lock()
-		defer logMu.Unlock()
-		loggingDone = true
-		if activeLookup != "" && ctx.Err() != nil {
-			dnsDiagnostics = append(dnsDiagnostics, failureDiagnostic(activeLookup))
-		}
-		for _, diagnostic := range dnsDiagnostics {
-			fmt.Fprintf(out, "%s: %s\n", renderProfileName(p.Name), diagnostic)
-		}
-	}()
-	transport := fallbackTransport(ctx, u.Hostname(), c.FallbackDNS, func(resolver string, event dnsLookupEvent) {
-		logMu.Lock()
-		defer logMu.Unlock()
-		if loggingDone {
-			return
-		}
-		switch event {
-		case dnsLookupStarted:
-			// Do not claim a new attempt after the request has expired.
-			if ctx.Err() == nil {
-				activeLookup = resolver
-				if resolver != "system resolver" {
-					dnsDiagnostics = append(dnsDiagnostics, "DNS lookup attempting "+resolver)
-				}
-			}
-		case dnsLookupFailed, dnsLookupSucceeded:
-			if activeLookup != resolver {
-				return
-			}
-			if event == dnsLookupFailed || ctx.Err() != nil {
-				dnsDiagnostics = append(dnsDiagnostics, failureDiagnostic(resolver))
-			} else if resolver != "system resolver" {
-				dnsDiagnostics = append(dnsDiagnostics, "DNS lookup succeeded using "+resolver)
-			}
-			activeLookup = ""
-		}
-	})
+	transport, flush := diagnosticTransport(ctx, u.Hostname(), c.FallbackDNS, p.Name, out, false)
+	defer flush()
 	defer transport.CloseIdleConnections()
 	client.Transport = transport
 	resp, err := client.Do(req)
@@ -157,6 +114,58 @@ func providerUpdate(c Config, p Profile, ip string, now func() time.Time, out io
 	}
 	return errors.New("provider rejected update or returned malformed success")
 }
+func diagnosticTransport(ctx context.Context, host string, servers []string, name string, out io.Writer, ipv4 bool) (*http.Transport, func()) {
+	// HTTP dialing can finish asynchronously after cancellation. Buffer safe,
+	// fixed diagnostics under a mutex and write only on this request's goroutine.
+	// Never log raw DNS errors, URLs, queries, or credentials.
+	var logMu sync.Mutex
+	var dnsDiagnostics []string
+	activeLookup := ""
+	loggingDone := false
+	failureDiagnostic := func(resolver string) string {
+		return "DNS lookup failed using " + resolver + " (lookup error or no usable addresses)"
+	}
+	flush := func() {
+		logMu.Lock()
+		defer logMu.Unlock()
+		loggingDone = true
+		if activeLookup != "" && ctx.Err() != nil {
+			dnsDiagnostics = append(dnsDiagnostics, failureDiagnostic(activeLookup))
+		}
+		for _, diagnostic := range dnsDiagnostics {
+			fmt.Fprintf(out, "%s: %s\n", renderProfileName(name), diagnostic)
+		}
+	}
+	transport := fallbackTransport(ctx, host, servers, func(resolver string, event dnsLookupEvent) {
+		logMu.Lock()
+		defer logMu.Unlock()
+		if loggingDone {
+			return
+		}
+		switch event {
+		case dnsLookupStarted:
+			// Do not claim a new attempt after the request has expired.
+			if ctx.Err() == nil {
+				activeLookup = resolver
+				if resolver != "system resolver" {
+					dnsDiagnostics = append(dnsDiagnostics, "DNS lookup attempting "+resolver)
+				}
+			}
+		case dnsLookupFailed, dnsLookupSucceeded:
+			if activeLookup != resolver {
+				return
+			}
+			if event == dnsLookupFailed || ctx.Err() != nil {
+				dnsDiagnostics = append(dnsDiagnostics, failureDiagnostic(resolver))
+			} else if resolver != "system resolver" {
+				dnsDiagnostics = append(dnsDiagnostics, "DNS lookup succeeded using "+resolver)
+			}
+			activeLookup = ""
+		}
+	}, ipv4)
+	return transport, flush
+}
+
 func submitMail(c Config, body string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), c.timeout)
 	defer cancel()
@@ -206,21 +215,35 @@ func update(c Config, d dependencies, out io.Writer) error {
 			// Confirmation belongs to the identity, but an HE pause belongs to
 			// the profile name and survives all configuration changes.
 			previous := old
-			old = profileState{Identity: id}
+			old = profileState{Identity: id, Failing: previous.Failing}
 			if previous.Retry != nil && previous.Retry.Kind == "he-abuse" {
 				old.Failing, old.Retry = previous.Failing, previous.Retry
 			}
 		}
 		current := old
-		ip, e := d.address(p.Interface)
-		if parsed := net.ParseIP(ip); e != nil || parsed == nil || parsed.To4() == nil || parsed.IsUnspecified() || parsed.IsMulticast() {
-			message := fmt.Sprintf("%s: interface %q IPv4 unavailable", renderProfileName(p.Name), p.Interface)
+		ip, e := detectAddress(c, p, d, out)
+		if e != nil {
+			// Exhaustion is a durable profile failure, not provider acceptance.
+			// Preserve the last confirmation and every surviving retry restriction,
+			// even when the new source identity has not yet been confirmed.
+			previous := s.Profiles[p.Name]
+			if !previous.Failing {
+				s.Dirty = true
+			}
+			if previous.Identity == "" {
+				previous.Identity = id
+			}
+			previous.Failing = true
+			s.Profiles[p.Name] = previous
+			if err := saveState(c.State, s); err != nil {
+				return errors.Join(append(failures, err)...)
+			}
+			message := p.Name + ": " + e.Error()
 			results = append(results, message)
-			notifications = append(notifications, fmt.Sprintf("%s: interface %q IPv4 unavailable", p.Name, p.Interface))
+			notifications = append(notifications, message)
 			failures = append(failures, errors.New(message))
 			continue
 		}
-		fmt.Fprintf(out, "%s: interface %q detected IPv4 %s\n", renderProfileName(p.Name), p.Interface, ip)
 		reason := ""
 		switch {
 		case s.Profiles[p.Name].Identity != "" && s.Profiles[p.Name].Identity != id:

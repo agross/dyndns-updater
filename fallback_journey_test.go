@@ -21,7 +21,7 @@ import (
 // answers, truncated UDP, TCP framing, and deliberately stalled responses.
 type fakeDNS struct {
 	address  string
-	mode     atomic.Int32 // 0=answer, 1=NXDOMAIN, 2=empty, 3=truncate UDP, 4=stall, 5=SERVFAIL, 6=unusable
+	mode     atomic.Int32 // 0=answer, 1=NXDOMAIN, 2=empty, 3=truncate UDP, 4=stall, 5=SERVFAIL, 6=unusable, 7=IPv6-only
 	delay    atomic.Int64
 	udp, tcp atomic.Int32
 }
@@ -87,7 +87,16 @@ func startDNS(t *testing.T, address string) *fakeDNS {
 			response[2] |= 2
 			return response
 		}
-		if mode == 2 || binary.BigEndian.Uint16(query[end-4:end-2]) != 1 {
+		qtype := binary.BigEndian.Uint16(query[end-4 : end-2])
+		if mode == 7 {
+			if qtype != 28 {
+				return response
+			}
+			response[7] = 1
+			response = append(response, 0xc0, 0x0c, 0, 28, 0, 1, 0, 0, 0, 0, 0, 16)
+			return append(response, net.ParseIP("::1").To16()...)
+		}
+		if mode == 2 || qtype != 1 {
 			return response
 		}
 		response[7] = 1
@@ -255,7 +264,7 @@ func TestCLIFallbackFailureRecovery(t *testing.T) {
 	j.run(0)
 	confirmed := j.state().Profiles["dns"]
 	resolver.mode.Store(1)
-	j.ip = "192.0.2.11"
+	j.ip = "8.0.2.11"
 	j.run(1)
 	j.run(1)
 	failed := j.state().Profiles["dns"]

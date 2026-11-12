@@ -14,10 +14,11 @@ import (
 
 // Only controlled codes are persisted. No provider text or credential is stored.
 type retryState struct {
-	Kind  string    `json:"kind"`
-	Until time.Time `json:"until,omitempty"`
-	Salt  string    `json:"salt,omitempty"`
-	Key   string    `json:"key,omitempty"`
+	KeyVersion int       `json:"key_version,omitempty"`
+	Kind       string    `json:"kind"`
+	Until      time.Time `json:"until,omitempty"`
+	Salt       string    `json:"salt,omitempty"`
+	Key        string    `json:"key,omitempty"`
 }
 
 type providerFailure struct {
@@ -44,11 +45,15 @@ func retryMessage(kind string, until time.Time) string {
 }
 
 func retryKey(p Profile, salt string) string {
+	return retryKeyForIdentity(p, salt, identity(p))
+}
+
+func retryKeyForIdentity(p Profile, salt, id string) string {
 	credentials := []string{p.Token}
 	if p.Provider == "tunnelbroker" {
 		credentials = []string{p.Username, p.Password}
 	}
-	b, _ := json.Marshal(append([]string{salt, identity(p)}, credentials...))
+	b, _ := json.Marshal(append([]string{salt, id}, credentials...))
 	sum := sha256.Sum256(b)
 	return hex.EncodeToString(sum[:])
 }
@@ -61,6 +66,7 @@ func newRetry(p Profile, failure providerFailure) (*retryState, error) {
 	if _, err := rand.Read(salt[:]); err != nil {
 		return nil, fmt.Errorf("cannot initialize retry state")
 	}
+	r.KeyVersion = 1
 	r.Salt = hex.EncodeToString(salt[:])
 	r.Key = retryKey(p, r.Salt)
 	return r, nil
@@ -73,11 +79,11 @@ func validRetry(r *retryState, p profileState) bool {
 	if r == nil {
 		return true
 	}
-	if !p.Failing {
+	if !p.Failing || (r.KeyVersion != 0 && r.KeyVersion != 1) {
 		return false
 	}
 	if r.Kind == "desec-rate" {
-		return !r.Until.IsZero() && r.Until.Year() >= 1 && r.Until.Year() <= 9999 && r.Salt == "" && r.Key == ""
+		return !r.Until.IsZero() && r.Until.Year() >= 1 && r.Until.Year() <= 9999 && r.Salt == "" && r.Key == "" && r.KeyVersion == 0
 	}
 	switch r.Kind {
 	case "desec-auth", "desec-hostname", "desec-target":

@@ -101,8 +101,8 @@ func TestCLIDiscoveryIdentityAndFailureDeduplication(t *testing.T) {
 	j.missing = true
 	j.run(1)
 	j.write(sourceProfile("dns", srv.URL, "if:wan", "web:ipify"))
-	// Success of the first source skips ipify. Changing source configuration is
-	// still a new identity requiring provider acceptance, not recovery by detection.
+	// Success of the first source skips ipify. Source configuration preserves
+	// identity, but outstanding failure still requires provider acceptance.
 	j.missing = false
 	reject.Store(true)
 	j.run(1)
@@ -111,16 +111,16 @@ func TestCLIDiscoveryIdentityAndFailureDeduplication(t *testing.T) {
 	}
 	reject.Store(false)
 	j.run(0)
-	if calls.Load() != 3 || len(j.mails) != 3 || j.state().Profiles["dns"].Identity == confirmed.Identity {
+	if calls.Load() != 3 || len(j.mails) != 3 || j.state().Profiles["dns"].Identity != confirmed.Identity {
 		t.Fatal("source identity/recovery missing")
 	}
-	// Reordering sources also invalidates confirmation, even if address is equal.
+	// Reordering sources preserves confirmation once provider recovery succeeds.
 	j.write(sourceProfile("dns", srv.URL, "if:wan", "if:other"))
 	j.run(0)
 	j.write(sourceProfile("dns", srv.URL, "if:other", "if:wan"))
 	j.run(0)
-	if calls.Load() != 5 {
-		t.Fatal("source identity change skipped provider confirmation")
+	if calls.Load() != 3 {
+		t.Fatal("source-only change repeated provider confirmation")
 	}
 }
 

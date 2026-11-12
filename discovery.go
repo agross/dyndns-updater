@@ -17,7 +17,7 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
-// Source retains the selector in identity without storing resolved service URLs.
+// Source retains the configured selector and value, not resolved service URLs.
 type Source struct {
 	Selector string
 	Value    string

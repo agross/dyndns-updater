@@ -30,7 +30,12 @@ made; local fixtures establish client behavior, not a live-provider verification
 An optional profile `endpoint` overrides the documented URL for testing or a
 trusted proxy. HTTPS is mandatory except for HTTP to a literal loopback IP.
 Do not point it at an untrusted service: it receives that profile's credentials.
-Public address discovery and custom DNS resolvers are not implemented (#3/#4).
+Address discovery is separate from provider acceptance. Ordered `if`, named `web`,
+and custom `url` sources detect a public IPv4 before the provider request. Discovery
+never receives provider authentication, and provider rejection never restarts discovery.
+See [address sources and fallback DNS](../README.md#address-sources) for endpoint,
+parser, routing, timeout and resolver contracts. No live DNS-provider validation is
+performed by discovery tests.
 
 ## Response and retry matrix (#16)
 
@@ -78,7 +83,7 @@ assigned to HE without evidence. A non-200 `abuse` remains a generic HTTP failur
 ### Exact recovery rules
 
 Intervention holds for deSEC 400/401/404 survive address changes, refresh and
-restarts. Token or identity (provider/target/interface/endpoint) corrections
+restarts. Token or identity (provider/target/sources/endpoint) corrections
 release them. Removing that profile's state also releases them; provider-side-only
 corrections cannot be detected without another request and need an explicit reset.
 HE `abuse` persists an absolute UTC `until = response receipt + 15 minutes`.

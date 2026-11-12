@@ -33,7 +33,7 @@ func cliConfig(t *testing.T, endpoint string) (string, string, string) {
 	}
 	cfg := filepath.Join(dir, "config.yaml")
 	state := filepath.Join(dir, "state.json")
-	body := fmt.Sprintf("state: %s\nsendmail: %s\ntimeout: 5s\nprofiles:\n%s", state, sendmail, strings.Replace(profile("dns", "desec", endpoint), "interface: wan", "interface: lo", 1))
+	body := fmt.Sprintf("state: %s\nsendmail: %s\ntimeout: 5s\nprofiles:\n%s", state, sendmail, strings.Replace(profile("dns", "desec", endpoint), "sources: [{if: wan}]", localDiscoverySetting(t), 1))
 	if e := os.WriteFile(cfg, []byte(body), 0600); e != nil {
 		t.Fatal(e)
 	}
@@ -47,7 +47,7 @@ func TestBuiltCLIWithLocalSendmail(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-		if r.URL.Query().Get("myipv4") != "127.0.0.1" || r.URL.Query().Get("myipv6") != "preserve" {
+		if r.URL.Query().Get("myipv4") != "8.0.2.10" || r.URL.Query().Get("myipv6") != "preserve" {
 			t.Error("wrong request")
 		}
 		fmt.Fprint(w, "good")
@@ -60,11 +60,11 @@ func TestBuiltCLIWithLocalSendmail(t *testing.T) {
 		if e != nil {
 			t.Fatalf("run: %v %s", e, b)
 		}
-		decision, result := "updating provider: no confirmed state", "confirmed 127.0.0.1"
+		decision, result := "updating provider: no confirmed state", "confirmed 8.0.2.10"
 		if i == 1 {
 			decision, result = "skipping update: address unchanged and refresh not due", "unchanged"
 		}
-		want := "dns: interface \"lo\" detected IPv4 127.0.0.1\ndns: " + decision + "\ndns: " + result + "\n"
+		want := "dns: source 1 (url) attempting IPv4 detection\ndns: source 1 detected IPv4 8.0.2.10\ndns: " + decision + "\ndns: " + result + "\n"
 		if string(b) != want {
 			t.Fatalf("built CLI output = %q, want %q", b, want)
 		}
@@ -207,7 +207,7 @@ func TestConcurrentCLIAndKilledLockHolder(t *testing.T) {
 				t.Fatalf("calls=%d want=%d", calls.Load(), want)
 			}
 			s, e := readState(state)
-			if e != nil || s.Profiles["dns"].Address != "127.0.0.1" {
+			if e != nil || s.Profiles["dns"].Address != "8.0.2.10" {
 				t.Fatal("state not intact")
 			}
 		})

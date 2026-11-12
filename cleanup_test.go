@@ -41,7 +41,7 @@ func TestCLIProfileCleanup(t *testing.T) {
 				code = 1
 			case "independent failures":
 				bad = true
-				j.ip = "192.0.2.20"
+				j.ip = "8.0.2.20"
 				code = 1
 				j.write(keep + profile("success", "desec", srv.URL+"/success"))
 			}
@@ -56,17 +56,22 @@ func TestCLIProfileCleanup(t *testing.T) {
 					t.Fatal("independent outcomes lost", s, calls, j.mails)
 				}
 				retained.Failing = false
+			} else if mode == "unavailable" {
+				if !retained.Failing || calls["/keep"] != 1 || len(j.mails) != 2 {
+					t.Fatal("detection failure not independent of cleanup")
+				}
+				retained.Failing = false
 			} else if calls["/keep"] != 1 || len(j.mails) != 1 {
 				t.Fatal("cleanup triggered provider or mail", calls, j.mails)
 			}
 			if retained != confirmed || calls["/removed"] != 1 {
 				t.Fatal("retained confirmation changed", s, calls)
 			}
-			if mode == "unavailable" && out != "keep: interface \"wan\" IPv4 unavailable\n" {
+			if mode == "unavailable" && out != "keep: source 1 (if) attempting IPv4 detection\nkeep: source 1 failed IPv4 detection\nkeep: IPv4 detection failed (all sources exhausted)\n" {
 				t.Fatalf("output=%q", out)
 			}
 			if mode == "unchanged" {
-				want := "keep: interface \"wan\" detected IPv4 192.0.2.10\nkeep: skipping update: address unchanged and refresh not due\nkeep: unchanged\n"
+				want := "keep: source 1 (if) attempting IPv4 detection\nkeep: interface \"wan\" detected IPv4 8.0.2.10\nkeep: skipping update: address unchanged and refresh not due\nkeep: unchanged\n"
 				if out != want {
 					t.Fatalf("output=%q want=%q", out, want)
 				}
@@ -194,7 +199,7 @@ func TestBuiltCLICleanupRetriesRemovedProfileMail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	both := append(append([]byte(nil), config...), []byte(strings.Replace(profile("removed", "desec", srv.URL), "interface: wan", "interface: lo", 1))...)
+	both := append(append([]byte(nil), config...), []byte(strings.Replace(profile("removed", "desec", srv.URL), "sources: [{if: wan}]", localDiscoverySetting(t), 1))...)
 	if err := os.WriteFile(cfg, both, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -221,7 +226,7 @@ func TestBuiltCLICleanupRetriesRemovedProfileMail(t *testing.T) {
 	}
 	for i := 0; i < 2; i++ {
 		out, err := exec.Command(bin, "--config", cfg).CombinedOutput()
-		want := "dns: interface \"lo\" detected IPv4 127.0.0.1\ndns: skipping update: address unchanged and refresh not due\ndns: unchanged\n"
+		want := "dns: source 1 (url) attempting IPv4 detection\ndns: source 1 detected IPv4 8.0.2.10\ndns: skipping update: address unchanged and refresh not due\ndns: unchanged\n"
 		if err != nil || string(out) != want {
 			t.Fatalf("cleanup/retry: %v %q", err, out)
 		}

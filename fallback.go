@@ -26,6 +26,20 @@ func resolverAddress(value string) (string, error) {
 	return net.JoinHostPort(host, strconv.FormatUint(n, 10)), nil
 }
 
+func usableDestinationAddresses(addresses []net.IPAddr, ipv4 bool) []net.IPAddr {
+	result := usableAddresses(addresses)
+	if !ipv4 {
+		return result
+	}
+	filtered := result[:0]
+	for _, a := range result {
+		if a.IP.To4() != nil {
+			filtered = append(filtered, a)
+		}
+	}
+	return filtered
+}
+
 func usableAddresses(addresses []net.IPAddr) []net.IPAddr {
 	result := make([]net.IPAddr, 0, len(addresses))
 	for _, address := range addresses {
@@ -48,13 +62,13 @@ const (
 	dnsLookupSucceeded
 )
 
-func lookupProvider(ctx context.Context, host string, servers []string, report func(string, dnsLookupEvent)) ([]net.IPAddr, error) {
+func lookupProvider(ctx context.Context, host string, servers []string, report func(string, dnsLookupEvent), ipv4 bool) ([]net.IPAddr, error) {
 	// DNS workers may finish asynchronously after request cancellation. Capture
 	// the dial function before starting them, including when tests replace it.
 	dialDNS := fallbackDNSDial
 	report("system resolver", dnsLookupStarted)
 	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-	if addresses = usableAddresses(addresses); err == nil && len(addresses) > 0 && ctx.Err() == nil {
+	if addresses = usableDestinationAddresses(addresses, ipv4); err == nil && len(addresses) > 0 && ctx.Err() == nil {
 		report("system resolver", dnsLookupSucceeded)
 		return addresses, nil
 	}
@@ -69,7 +83,7 @@ func lookupProvider(ctx context.Context, host string, servers []string, report f
 		}}
 		report(fmt.Sprintf("fallback resolver %q", server), dnsLookupStarted)
 		addresses, err = resolver.LookupIPAddr(ctx, host)
-		if addresses = usableAddresses(addresses); err == nil && len(addresses) > 0 && ctx.Err() == nil {
+		if addresses = usableDestinationAddresses(addresses, ipv4); err == nil && len(addresses) > 0 && ctx.Err() == nil {
 			report(fmt.Sprintf("fallback resolver %q", server), dnsLookupSucceeded)
 			return addresses, nil
 		}
@@ -80,10 +94,13 @@ func lookupProvider(ctx context.Context, host string, servers []string, report f
 
 // Keep URL, Host, SNI, proxy policy and certificate checks untouched. Only the
 // destination dial for the provider hostname is replaced, not proxy resolution.
-func fallbackTransport(ctx context.Context, host string, servers []string, report func(string, dnsLookupEvent)) *http.Transport {
+func fallbackTransport(ctx context.Context, host string, servers []string, report func(string, dnsLookupEvent), ipv4 bool) *http.Transport {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	originalDial := transport.DialContext
 	transport.DialContext = func(dialCtx context.Context, network, address string) (net.Conn, error) {
+		if ipv4 {
+			network = "tcp4"
+		}
 		name, port, err := net.SplitHostPort(address)
 		if err != nil || name != host || net.ParseIP(name) != nil {
 			return originalDial(dialCtx, network, address)
@@ -99,7 +116,7 @@ func fallbackTransport(ctx context.Context, host string, servers []string, repor
 			dialCtx, deadlineCancel = context.WithDeadline(dialCtx, deadline)
 			defer deadlineCancel()
 		}
-		addresses, err := lookupProvider(dialCtx, name, servers, report)
+		addresses, err := lookupProvider(dialCtx, name, servers, report, ipv4)
 		if err != nil {
 			return nil, err
 		}

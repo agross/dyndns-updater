@@ -24,11 +24,11 @@ func TestUpdateJourney(t *testing.T) {
 	defer server.Close()
 	dir := t.TempDir()
 	cfg := filepath.Join(dir, "config.yaml")
-	text := fmt.Sprintf("state: %s\nrefresh: 600h\nprofiles:\n  dns:\n    provider: desec\n    interface: wan\n    target: example.invalid\n    token: synthetic-secret\n    endpoint: %s\n", filepath.Join(dir, "state.json"), server.URL)
+	text := fmt.Sprintf("state: %s\nrefresh: 600h\nprofiles:\n  dns:\n    provider: desec\n    sources: [{if: wan}]\n    target: example.invalid\n    token: synthetic-secret\n    endpoint: %s\n", filepath.Join(dir, "state.json"), server.URL)
 	if err := os.WriteFile(cfg, []byte(text), 0600); err != nil {
 		t.Fatal(err)
 	}
-	ip := "192.0.2.1"
+	ip := "8.0.2.1"
 	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	mails := []string{}
 	d := dependencies{address: func(string) (string, error) { return ip, nil }, now: func() time.Time { return now }, mail: func(_ Config, body string) error { mails = append(mails, body); return nil }}
@@ -52,7 +52,7 @@ func TestUpdateJourney(t *testing.T) {
 	if calls != 2 || len(mails) != 1 {
 		t.Fatal("same-address refresh should be quiet")
 	}
-	ip = "192.0.2.2"
+	ip = "8.0.2.2"
 	run()
 	if calls != 3 || len(mails) != 2 {
 		t.Fatal("changed address not reported")

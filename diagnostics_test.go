@@ -62,30 +62,30 @@ func TestCLIMissingStateDirectory(t *testing.T) {
 
 func TestCLIMissingInterfacesReportedOnce(t *testing.T) {
 	j := newJourney(t)
-	j.write(profile("gateway-dns", "desec", "http://127.0.0.1:1") + strings.ReplaceAll(profile("gateway-tunnel", "tunnelbroker", "http://127.0.0.1:1"), "interface: wan", "interface: uplink"))
+	j.write(profile("gateway-dns", "desec", "http://127.0.0.1:1") + strings.ReplaceAll(profile("gateway-tunnel", "tunnelbroker", "http://127.0.0.1:1"), "sources: [{if: wan}]", "sources: [{if: uplink}]"))
 	// Exercise real OS lookup through the CLI with two absent interfaces.
 	content, err := os.ReadFile(j.config)
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := strings.ReplaceAll(string(content), "interface: wan", "interface: dyndns-no-if")
-	text = strings.ReplaceAll(text, "interface: uplink", "interface: dyndns-no-if2")
+	text := strings.ReplaceAll(string(content), "sources: [{if: wan}]", "sources: [{if: dyndns-no-if}]")
+	text = strings.ReplaceAll(text, "sources: [{if: uplink}]", "sources: [{if: dyndns-no-if2}]")
 	if err := os.WriteFile(j.config, []byte(text), 0600); err != nil {
 		t.Fatal(err)
 	}
 	d := productionDependencies()
-	d.mail = func(Config, string) error { t.Fatal("missing interfaces triggered mail"); return nil }
+	d.mail = func(_ Config, body string) error { j.mails = append(j.mails, body); return nil }
 	var output bytes.Buffer
 	if code := runCLI([]string{"--config", j.config}, &output, d); code != 1 {
 		t.Fatalf("exit = %d", code)
 	}
 	out := output.String()
-	want := "gateway-dns: interface \"dyndns-no-if\" IPv4 unavailable\ngateway-tunnel: interface \"dyndns-no-if2\" IPv4 unavailable\n"
+	want := "gateway-dns: source 1 (if) attempting IPv4 detection\ngateway-dns: source 1 failed IPv4 detection\ngateway-tunnel: source 1 (if) attempting IPv4 detection\ngateway-tunnel: source 1 failed IPv4 detection\ngateway-dns: IPv4 detection failed (all sources exhausted)\ngateway-tunnel: IPv4 detection failed (all sources exhausted)\n"
 	if out != want {
 		t.Fatalf("output = %q, want %q", out, want)
 	}
-	if len(j.mails) != 0 {
-		t.Fatal("missing interfaces triggered mail")
+	if len(j.mails) != 1 {
+		t.Fatal("exhaustion must persist one all-profile failure summary")
 	}
 }
 
@@ -103,11 +103,11 @@ func TestCLIUpdateDecisionTrace(t *testing.T) {
 	}))
 	defer server.Close()
 	// Quoted interface names must remain unambiguous in the trace.
-	base := strings.ReplaceAll(profile("dns", "desec", server.URL), "interface: wan", `interface: 'wan "quoted"'`)
+	base := strings.ReplaceAll(profile("dns", "desec", server.URL), "sources: [{if: wan}]", `sources: [{if: 'wan "quoted"'}]`)
 	j.write(base)
 	check := func(reason, result string, code, wantCalls int) {
 		t.Helper()
-		want := fmt.Sprintf("dns: interface %q detected IPv4 %s\ndns: %s\ndns: %s\n", `wan "quoted"`, j.ip, reason, result)
+		want := fmt.Sprintf("dns: source 1 (if) attempting IPv4 detection\ndns: interface %q detected IPv4 %s\ndns: %s\ndns: %s\n", `wan "quoted"`, j.ip, reason, result)
 		if out := j.run(code); out != want {
 			t.Fatalf("output = %q, want %q", out, want)
 		}
@@ -117,12 +117,12 @@ func TestCLIUpdateDecisionTrace(t *testing.T) {
 	}
 	check("updating provider: no confirmed state", "confirmed "+j.ip, 0, 1)
 	check("skipping update: address unchanged and refresh not due", "unchanged", 0, 1)
-	j.ip = "192.0.2.20"
+	j.ip = "8.0.2.20"
 	check("updating provider: address changed", "confirmed "+j.ip, 0, 2)
 	j.now = j.now.Add(600 * time.Hour)
 	check("updating provider: refresh due", "confirmed "+j.ip, 0, 3)
 	fail = true
-	j.ip = "192.0.2.30"
+	j.ip = "8.0.2.30"
 	check("updating provider: address changed", "provider HTTP failure (500)", 1, 4)
 	check("updating provider: retrying previous failure", "provider HTTP failure (500)", 1, 5)
 	fail = false
@@ -141,7 +141,7 @@ func TestCLIProfileAndMailFailuresReportedOnce(t *testing.T) {
 	j.write(profile("gateway-dns", "desec", server.URL))
 	j.mailError = true
 	out := j.run(1)
-	want := "gateway-dns: interface \"wan\" detected IPv4 192.0.2.10\ngateway-dns: updating provider: no confirmed state\ngateway-dns: provider HTTP failure (503)\n[error] mail failed\n"
+	want := "gateway-dns: source 1 (if) attempting IPv4 detection\ngateway-dns: interface \"wan\" detected IPv4 8.0.2.10\ngateway-dns: updating provider: no confirmed state\ngateway-dns: provider HTTP failure (503)\n[error] mail failed\n"
 	if out != want {
 		t.Fatalf("output = %q, want %q", out, want)
 	}

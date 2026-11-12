@@ -32,12 +32,12 @@ func TestCLIInterventionRecovery(t *testing.T) {
 				base := profile("dns", "desec", srv.URL)
 				j.write(base)
 				j.run(0)
-				j.ip = "192.0.2.20"
+				j.ip = "8.0.2.20"
 				status = code
 				j.run(1)
 				j.now = j.now.Add(1000 * time.Hour)
 				out := j.run(1)
-				if calls != 2 || len(j.mails) != 2 || j.state().Profiles["dns"].Address != "192.0.2.10" || !strings.Contains(out, "correct") {
+				if calls != 2 || len(j.mails) != 2 || j.state().Profiles["dns"].Address != "8.0.2.10" || !strings.Contains(out, "correct") {
 					t.Fatal("intervention/confirmation/notification contract broken")
 				}
 				status = 200
@@ -47,7 +47,7 @@ func TestCLIInterventionRecovery(t *testing.T) {
 				case "target":
 					j.write(strings.ReplaceAll(base, "example.invalid", "new.invalid"))
 				case "interface":
-					j.write(strings.ReplaceAll(base, "interface: wan", "interface: newwan"))
+					j.write(strings.ReplaceAll(base, "sources: [{if: wan}]", "sources: [{if: newwan}]"))
 				case "endpoint":
 					j.write(strings.ReplaceAll(base, srv.URL, srv.URL+"/new"))
 				case "remove-state":
@@ -212,7 +212,7 @@ func TestCLIHEAbuseUnconfirmedAndFailing(t *testing.T) {
 	if calls != 1 || j.state().Profiles["tunnel"].Address != "" || len(j.mails) != 1 {
 		t.Fatal("abuse must remain unconfirmed, suppress repeat and remain failing")
 	}
-	j.ip = "192.0.2.20"
+	j.ip = "8.0.2.20"
 	j.run(1)
 	j.now = j.now.Add(15 * time.Minute)
 	j.run(0)

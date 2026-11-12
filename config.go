@@ -27,14 +27,14 @@ type Config struct {
 	refresh, timeout time.Duration
 }
 type Profile struct {
-	Name      string `yaml:"-"`
-	Provider  string `yaml:"provider"`
-	Interface string `yaml:"interface"`
-	Target    string `yaml:"target"`
-	Token     string `yaml:"token"`
-	Username  string `yaml:"username"`
-	Password  string `yaml:"password"`
-	Endpoint  string `yaml:"endpoint"`
+	Name     string  `yaml:"-"`
+	Provider string  `yaml:"provider"`
+	Sources  Sources `yaml:"sources"`
+	Target   string  `yaml:"target"`
+	Token    string  `yaml:"token"`
+	Username string  `yaml:"username"`
+	Password string  `yaml:"password"`
+	Endpoint string  `yaml:"endpoint"`
 }
 
 var hostName = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9_.-]*$`)
@@ -91,8 +91,13 @@ func loadConfig(path string) (Config, error) {
 	seen := map[string]bool{}
 	for i := range c.Profiles {
 		p := &c.Profiles[i]
-		if !validProfileName(p.Name) || seen[p.Name] || p.Interface == "" || strings.ContainsAny(p.Interface, "\r\n\x00") || !hostName.MatchString(p.Target) {
-			return c, errors.New("invalid profile name, target, or interface")
+		if !validProfileName(p.Name) || seen[p.Name] || len(p.Sources) == 0 || !hostName.MatchString(p.Target) {
+			return c, errors.New("invalid profile name, target, or sources")
+		}
+		for _, source := range p.Sources {
+			if _, _, err := parseSource(source); err != nil {
+				return c, errors.New("invalid address source")
+			}
 		}
 		seen[p.Name] = true
 		switch p.Provider {

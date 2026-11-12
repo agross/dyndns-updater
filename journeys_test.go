@@ -25,7 +25,7 @@ type journey struct {
 }
 
 func newJourney(t *testing.T) *journey {
-	return &journey{t: t, dir: t.TempDir(), ip: "192.0.2.10", now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
+	return &journey{t: t, dir: t.TempDir(), ip: "8.0.2.10", now: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)}
 }
 func (j *journey) write(profiles string) {
 	j.t.Helper()
@@ -36,7 +36,7 @@ func (j *journey) write(profiles string) {
 	}
 }
 func profile(name, provider, endpoint string) string {
-	return fmt.Sprintf("  %q:\n    provider: %s\n    interface: wan\n    target: example.invalid\n    token: synthetic-secret\n    username: synthetic-user\n    password: synthetic-password\n    endpoint: %s\n", name, provider, endpoint)
+	return fmt.Sprintf("  %q:\n    provider: %s\n    sources: [{if: wan}]\n    target: example.invalid\n    token: synthetic-secret\n    username: synthetic-user\n    password: synthetic-password\n    endpoint: %s\n", name, provider, endpoint)
 }
 func (j *journey) run(want int) string {
 	j.t.Helper()
@@ -114,21 +114,21 @@ func TestFailureTransitionsAndIndependentProfiles(t *testing.T) {
 	}
 	j.missing = true
 	j.run(1)
-	if len(j.mails) != 2 {
-		t.Fatal("missing interface notified")
+	if len(j.mails) != 3 {
+		t.Fatal("new detection failure not notified")
 	}
 	j.missing = false
 	bad = false
 	j.run(0)
-	if len(j.mails) != 3 {
+	if len(j.mails) != 4 {
 		t.Fatal("recovery not notified")
 	}
 	j.missing = true
 	j.run(1)
 	j.missing = false
 	j.run(0)
-	if len(j.mails) != 3 {
-		t.Fatal("unchanged interface return notified")
+	if len(j.mails) != 6 {
+		t.Fatal("detection outage and provider-confirmed recovery not notified")
 	}
 }
 
@@ -191,7 +191,7 @@ func TestIdentityAndCorruptState(t *testing.T) {
 	if calls != 1 {
 		t.Fatal("credential rotation invalidated state")
 	}
-	for _, change := range []string{strings.Replace(base, "example.invalid", "new.invalid", 1), strings.Replace(base, "interface: wan", "interface: other", 1), profile("dns", "tunnelbroker", srv.URL)} {
+	for _, change := range []string{strings.Replace(base, "example.invalid", "new.invalid", 1), strings.Replace(base, "sources: [{if: wan}]", "sources: [{if: other}]", 1), profile("dns", "tunnelbroker", srv.URL)} {
 		j.write(change)
 		j.run(0)
 	}
@@ -244,7 +244,7 @@ func TestRejectedResponsesAndTimeout(t *testing.T) {
 		provider, body string
 		status         int
 	}{
-		{"desec", "good 192.0.2.10", 200}, {"desec", "good\nbadauth", 200}, {"desec", "", 200}, {"desec", strings.Repeat("x", 4097), 200}, {"desec", "good", 401}, {"desec", "good", 302}, {"tunnelbroker", "good 192.0.2.99", 200}, {"tunnelbroker", "good", 200}, {"tunnelbroker", "good 192.0.2.10 extra", 200},
+		{"desec", "good 8.0.2.10", 200}, {"desec", "good\nbadauth", 200}, {"desec", "", 200}, {"desec", strings.Repeat("x", 4097), 200}, {"desec", "good", 401}, {"desec", "good", 302}, {"tunnelbroker", "good 8.0.2.99", 200}, {"tunnelbroker", "good", 200}, {"tunnelbroker", "good 8.0.2.10 extra", 200},
 	} {
 		t.Run(fmt.Sprintf("%s-%d-%d", tc.provider, tc.status, len(tc.body)), func(t *testing.T) {
 			j := newJourney(t)
@@ -279,17 +279,17 @@ func TestAddressChangeDuringUpdate(t *testing.T) {
 	received := []string{}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		received = append(received, r.URL.Query().Get("myipv4"))
-		j.ip = "192.0.2.20"
+		j.ip = "8.0.2.20"
 		fmt.Fprint(w, "good")
 	}))
 	defer srv.Close()
 	j.write(profile("dns", "desec", srv.URL))
 	j.run(0)
-	if j.state().Profiles["dns"].Address != "192.0.2.10" {
+	if j.state().Profiles["dns"].Address != "8.0.2.10" {
 		t.Fatal("recorded unconfirmed address")
 	}
 	j.run(0)
-	if len(received) != 2 || received[1] != "192.0.2.20" {
+	if len(received) != 2 || received[1] != "8.0.2.20" {
 		t.Fatal("next run missed change")
 	}
 }

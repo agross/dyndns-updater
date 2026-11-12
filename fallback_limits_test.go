@@ -61,9 +61,9 @@ func TestCLIFallbackUnavailableAndDisabled(t *testing.T) {
 	count := later.udp.Load()
 	j.write(profile("dns", "desec", endpoint))
 	j.fallback()
-	j.ip = "192.0.2.11"
+	j.ip = "8.0.2.11"
 	j.run(1)
-	if later.udp.Load() != count || j.state().Profiles["dns"].Address != "192.0.2.10" {
+	if later.udp.Load() != count || j.state().Profiles["dns"].Address != "8.0.2.10" {
 		t.Fatal("explicit empty list changed system-only failure behavior")
 	}
 }
@@ -98,7 +98,7 @@ func TestCLIFallbackPreservesProxyPolicy(t *testing.T) {
 }
 
 func TestCLIValidFallbackAddressSyntax(t *testing.T) {
-	for _, value := range []string{"192.0.2.53", "2001:db8::53", "192.0.2.53:5353", "[2001:db8::53]:5353"} {
+	for _, value := range []string{"8.0.2.53", "2001:db8::53", "8.0.2.53:5353", "[2001:db8::53]:5353"} {
 		t.Run(value, func(t *testing.T) {
 			j := newJourney(t)
 			j.write(profile("dns", "desec", "https://example.invalid/"))

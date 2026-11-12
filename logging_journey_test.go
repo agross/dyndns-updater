@@ -75,7 +75,7 @@ func TestCLIFallbackResolutionTrace(t *testing.T) {
 			if trace != want {
 				t.Fatalf("trace=%q want=%q", trace, want)
 			}
-			if !strings.HasPrefix(out, name+": interface ") || strings.Contains(out, strconv.Quote(name)+":") {
+			if !strings.HasPrefix(out, name+": source 1 (if) attempting IPv4 detection\n"+name+": interface ") || strings.Contains(out, strconv.Quote(name)+":") {
 				t.Fatalf("quoted name: %s", out)
 			}
 			if strings.Contains(out, "synthetic-secret") || strings.Contains(out, "provider.invalid") || strings.Contains(out, "https://") || strings.Contains(out, "lookup provider") {

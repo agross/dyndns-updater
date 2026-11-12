@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,10 +23,13 @@ func TestCLILegacyStateAndPendingMail(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; fmt.Fprint(w, "good") }))
 	defer srv.Close()
 	j.write(namedProfile("dns", srv.URL))
-	// Version 1 fixture produced before mapping syntax. Identity algorithm remains
-	// unchanged, and a preexisting pending body must be submitted byte-for-byte.
-	p := Profile{Provider: "desec", Target: "example.invalid", Interface: "wan", Endpoint: srv.URL}
-	legacy := fmt.Sprintf(`{"version":1,"profiles":{"dns":{"identity":%q,"address":"192.0.2.10","updated":"2026-01-01T00:00:00Z","failing":false}},"dirty":false,"pending":["dns: confirmed 192.0.2.10\n","removed-profile: interface \"wan \\\"quoted\\\"\" IPv4 unavailable\n"]}`, identity(p))
+	// Version 1 state from an interface-based configuration remains readable.
+	// Moving to sources changes identity and requires fresh provider confirmation;
+	// preexisting pending bodies must still be submitted byte-for-byte.
+	oldIdentityJSON, _ := json.Marshal([]string{"desec", "example.invalid", "wan", srv.URL})
+	digest := sha256.Sum256(oldIdentityJSON)
+	oldIdentity := hex.EncodeToString(digest[:])
+	legacy := fmt.Sprintf(`{"version":1,"profiles":{"dns":{"identity":%q,"address":"8.0.2.10","updated":"2026-01-01T00:00:00Z","failing":false}},"dirty":false,"pending":["dns: confirmed 8.0.2.10\n","removed-profile: interface \"wan \\\"quoted\\\"\" IPv4 unavailable\n"]}`, oldIdentity)
 	path := filepath.Join(j.dir, "state.json")
 	if err := os.WriteFile(path, []byte(legacy), 0600); err != nil {
 		t.Fatal(err)
@@ -35,12 +40,12 @@ func TestCLILegacyStateAndPendingMail(t *testing.T) {
 	}
 	j.mailError = true
 	j.run(1)
-	if calls != 0 {
-		t.Fatal("mapping syntax invalidated existing confirmed state")
+	if calls != 1 {
+		t.Fatal("source configuration did not require fresh confirmation")
 	}
 	j.mailError = false
 	j.run(0)
-	if calls != 0 || strings.Join(j.mails, "|") != strings.Join(snapshot.Pending, "|") {
+	if calls != 1 || len(j.mails) != 3 || strings.Join(j.mails[:2], "|") != strings.Join(snapshot.Pending, "|") {
 		t.Fatalf("pending content/order changed: %q", j.mails)
 	}
 }
@@ -76,7 +81,7 @@ func TestCLIExactDecodedNameIdentity(t *testing.T) {
 	if calls != len(names)+2 {
 		t.Fatal("refresh suppressed")
 	}
-	j.ip = "192.0.2.20"
+	j.ip = "8.0.2.20"
 	j.run(0)
 	if calls != len(names)+3 || j.state().Profiles["Home DNS"].Address != j.ip {
 		t.Fatal("address change suppressed")
@@ -107,12 +112,12 @@ func TestBuiltCLIMappingNameAndFakeMail(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CLI: %v %s", err, b)
 		}
-		decision, result := "updating provider: no confirmed state", "confirmed 127.0.0.1"
+		decision, result := "updating provider: no confirmed state", "confirmed 8.0.2.10"
 		if i == 1 {
 			decision, result = "skipping update: address unchanged and refresh not due", "unchanged"
 		}
 		q := name
-		want := q + ": interface \"lo\" detected IPv4 127.0.0.1\n" + q + ": " + decision + "\n" + q + ": " + result + "\n"
+		want := q + ": source 1 (url) attempting IPv4 detection\n" + q + ": source 1 detected IPv4 8.0.2.10\n" + q + ": " + decision + "\n" + q + ": " + result + "\n"
 		if string(b) != want {
 			t.Fatalf("output=%q want=%q", b, want)
 		}
@@ -129,7 +134,7 @@ func TestBuiltCLIMappingNameAndFakeMail(t *testing.T) {
 	if !ok || parseErr != nil || generated.UTC().Format(time.RFC3339) != value || generated.Before(started) || generated.After(time.Now()) {
 		t.Fatalf("invalid summary generation timestamp: %q", body)
 	}
-	wantMail := headers + line + "\n" + name + ": confirmed 127.0.0.1\n"
+	wantMail := headers + line + "\n" + name + ": confirmed 8.0.2.10\n"
 	if string(b) != wantMail || calls.Load() != 1 {
 		t.Fatalf("mail=%q calls=%d", b, calls.Load())
 	}
@@ -138,12 +143,12 @@ func TestBuiltCLIMappingNameAndFakeMail(t *testing.T) {
 		t.Fatal(err)
 	}
 	var s diskState
-	if err := json.Unmarshal(b, &s); err != nil || s.Profiles[name].Address != "127.0.0.1" {
+	if err := json.Unmarshal(b, &s); err != nil || s.Profiles[name].Address != "8.0.2.10" {
 		t.Fatal("decoded name not persisted")
 	}
 	// Invalid configuration must not consume even an existing valid queue, update
 	// the provider, or invoke the executable MTA.
-	s.Pending = []string{strconv.Quote(name) + ": confirmed 127.0.0.1\n"}
+	s.Pending = []string{strconv.Quote(name) + ": confirmed 8.0.2.10\n"}
 	b, err = json.Marshal(s)
 	if err != nil {
 		t.Fatal(err)

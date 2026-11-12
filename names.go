@@ -45,7 +45,7 @@ func (profiles *Profiles) UnmarshalYAML(node *yaml.Node) error {
 				return errors.New("invalid profile setting")
 			}
 			switch field.Value {
-			case "provider", "interface", "target", "token", "username", "password", "endpoint":
+			case "provider", "sources", "target", "token", "username", "password", "endpoint":
 			default:
 				return errors.New("unknown profile setting")
 			}
@@ -147,7 +147,7 @@ func validSummaryStatus(status string) bool {
 		}
 	}
 	switch status {
-	case "unchanged", "invalid provider request", "invalid provider response", "provider transport failure (DNS, connection, or TLS)", "provider rejected update or returned malformed success":
+	case "IPv4 detection failed (all sources exhausted)", "unchanged", "invalid provider request", "invalid provider response", "provider transport failure (DNS, connection, or TLS)", "provider rejected update or returned malformed success":
 		return true
 	}
 	if httpFailureStatus.MatchString(status) {

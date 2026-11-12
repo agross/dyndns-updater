@@ -39,7 +39,7 @@ func TestCLIHEAbuseDeadlineJourney(t *testing.T) {
 	j.run(0)
 	confirmed := j.state().Profiles["he"]
 	abuse = true
-	j.ip = "192.0.2.20"
+	j.ip = "8.0.2.20"
 	j.mailError = true
 	j.run(1)
 	first := j.state().Profiles["he"]

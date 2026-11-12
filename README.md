@@ -1,7 +1,7 @@
 # dyndns-updater
 
 A single-binary, one-shot Go client that updates deSEC DNS A records and Hurricane
-Electric Tunnelbroker IPv4 endpoints from configured network interfaces. deSEC
+Electric Tunnelbroker IPv4 endpoints from ordered public IPv4 address sources. deSEC
 AAAA records are always preserved. No Perl or Python runtime is required.
 
 ## Configuration and operation
@@ -20,14 +20,65 @@ The default configuration path is `/etc/dyndns-updater.yaml`. Unknown YAML keys,
 duplicate mapping keys, multiple documents, unsupported providers, missing
 credentials, and invalid durations/targets fail before any updates or mail.
 `refresh` defaults to `600h` (25 days); use Go duration syntax, not `25d`.
-`timeout` defaults to `30s` per provider request and sendmail invocation.
+`timeout` defaults to `30s` per web source, provider request, and sendmail invocation.
 `state` and `sendmail` paths must be absolute. Mail defaults to local `root` via
 `/usr/sbin/sendmail -oi -- root`; submission is bounded by the configured timeout.
 
-Each run detects each profile's current interface IPv4 address. When an interface
-has multiple IPv4 addresses, the first IPv4 address returned by the OS is used;
-configure a dedicated interface if selection matters. Public address discovery is
-not included (tracked in #3).
+### Address sources
+
+Every profile requires a nonempty, ordered list of source objects:
+
+```yaml
+sources:
+  - if: telekom
+  - web: ifconfig.me
+  - web: he
+  - web: ipify
+  - url: https://discovery.example.invalid/ip
+```
+
+Each object has exactly one selector with a nonempty string value. Unknown or
+additional properties, duplicate keys, scalar/prefix entries and unknown named
+services are rejected. The former `interface` setting is rejected; there is no
+compatibility alias or automatic configuration migration. All sources in all
+profiles are validated before networking, mail, state locking or writes, even
+entries that would not be reached after an earlier success.
+
+- `if` selects the first usable IPv4 returned by the OS for that interface.
+  Its selected address must be public; private/unavailable interfaces fall
+  through to the next source rather than searching later interface addresses.
+- `web: ifconfig.me` requests `https://ifconfig.me/ip` and `web: ipify` requests
+  `https://api.ipify.org/`; both require plain-text IPv4 responses.
+- `web: he` requests `https://checkip.dns.he.net/` and extracts the IPv4 immediately
+  associated with the unique `Your IP address is :` HTML text marker. Missing or
+  ambiguous markers fail; unrelated addresses in the document are not selected.
+- `url` accepts a custom HTTPS endpoint returning exactly one IPv4 literal, apart
+  from surrounding whitespace. Prose, multiple addresses, HTML, JSON and IPv6 fail,
+  even when the hostname belongs to a known service. URLs cannot contain credentials
+  or fragments. Literal-loopback HTTP is allowed only for local testing.
+
+All selected addresses must be public IPv4: private, shared/CGNAT, loopback,
+link-local, unspecified, multicast, broadcast, documentation, benchmarking and
+reserved ranges are rejected. Sources are tried sequentially; the first valid
+address stops detection. DNS/connect/TLS/read failures, timeouts, non-200 responses,
+redirects (never followed), oversized bodies (over 64 KiB), malformed content and
+non-public addresses advance to the next source. Earlier failures do not trigger
+failure mail if a later source succeeds. Provider credentials never go to discovery.
+
+Web requests use IPv4 connections, normal system routing, verified TLS and the
+fallback DNS policy below. An `if` source does not bind later traffic to that
+interface. Each web source gets a fresh `timeout` budget shared by its system DNS,
+fallback DNS, connection, TLS and body; provider requests get a separate budget.
+Total discovery duration can grow with the number of web entries. Detection runs
+anew on every invocation, even for otherwise unchanged or retry-restricted profiles.
+A provider rejection does not restart discovery or try another source.
+
+Exhaustion fails that profile and returns a nonzero overall exit without sending
+its provider update. Other profiles continue. The last confirmation and provider
+retry restrictions are retained; detection is retried next invocation without a
+new cooldown. Failure state and notification intent are checkpointed durably and
+repeated failures are deduplicated until strict provider acceptance clears them.
+Detection alone never means provider confirmation or recovery.
 
 ### Fallback DNS
 
@@ -54,7 +105,7 @@ Changing this list does not change profile identity or invalidate confirmed stat
 System DNS is tried first. Only a failed/negative lookup or a lookup with no usable
 addresses causes fallback; servers are tried in list order until one succeeds or
 the request deadline expires. DNS uses UDP and TCP when needed, directly to the
-configured IP. Literal-IP provider endpoints skip DNS. No DNS cache or system DNS
+configured IP. Literal-IP provider and discovery endpoints skip DNS. No DNS cache or system DNS
 changes are introduced. The existing `timeout` is one shared budget for system
 DNS, all fallback attempts, connection, TLS, and the HTTP response, **not** a fresh
 budget per server. An unresponsive resolver can consume the whole budget, leaving
@@ -70,7 +121,7 @@ itself continues to use normal system DNS.
 Resolver exhaustion is the existing credential-safe provider transport failure:
 other profiles continue, last confirmed addresses remain intact, and later
 invocations retry with the existing failure/recovery notification rules. Choose
-trusted resolvers and permit their UDP/TCP traffic: a fallback receives provider
+trusted resolvers and permit their UDP/TCP traffic: a fallback receives provider and discovery
 hostname queries and can return different addresses. TLS verification remains
 essential. Failed system and fallback lookups (including empty/unusable answers)
 are logged to stderr with the profile and resolver. Each attempted fallback is
@@ -92,7 +143,7 @@ and response details, endpoint overrides, and the HE refresh caveat.
 
 The state file records confirmed addresses, timestamps, hashed profile identity,
 provider failure state, and pending notification content, never credentials.
-Provider, target, interface, or endpoint changes invalidate a profile's old state;
+Provider, target, ordered source list, or endpoint changes invalidate a profile's old state;
 credential-only changes do not invalidate confirmed success, but release intervention
 restrictions. A failed update, including HE `abuse`, retains its last confirmed
 address and timestamp. An active HE pause survives all configuration changes,
@@ -134,7 +185,7 @@ confirmation.
 ### Provider retry restrictions
 
 - deSEC HTTP 401, 400, and 404 stop requests until the token or profile identity
-  (provider, target, interface, endpoint) changes, or that profile's state is
+  (provider, target, sources, endpoint) changes, or that profile's state is
   explicitly removed. Diagnostics identify authentication, hostname, or domain
   correction respectively. An address change or elapsed refresh alone does not
   release these intervention restrictions. Fixes made only on the provider side
@@ -210,10 +261,11 @@ No MTA, gateway or DNS configuration is changed by the updater.
 
 One summary containing every configured profile is queued when a successful
 update changes its recorded address (including initial confirmation), or a profile
-enters/exits provider failure (DNS, HTTP, transport, or API). No notification is
-triggered by a no-op, successful same-address refresh, repeated/changed errors
-while still failing, missing interface, or unchanged interface return. A previously
-queued notification is still retried during an interface outage. Invalid
+enters/exits detection or provider failure (DNS, HTTP, transport, or API). No
+notification is triggered by a no-op, successful same-address refresh, or repeated/changed
+errors while still failing. Detection exhaustion now triggers failure mail, including
+missing/private-interface-only profiles; recovery requires provider success. A previously
+queued notification is still retried during detection outages. Invalid
 configuration does not submit mail.
 
 New notification lines use the exact configured profile name without added quotes,
@@ -236,26 +288,28 @@ Delivery is **at least once**: a crash after local MTA acceptance but before wri
 its acknowledgement may duplicate mail. Local acceptance does not guarantee final
 delivery. No SMTP client or mail server is included.
 
-Each invocation logs the detected IPv4 address and its quoted source interface,
+Each invocation logs source attempts by index and selector, failures, and the
+detected IPv4 address (with the quoted interface for an `if` source),
 then the decision **before** contacting the provider. Update reasons distinguish
 missing confirmed state, changed profile identity, retry after failure, changed
 address, and due refresh. A no-op explicitly says the address is unchanged and
 refresh is not due. For example:
 
 ```text
-gateway-dns: interface "en0" detected IPv4 192.0.2.10
+gateway-dns: source 1 (if) attempting IPv4 detection
+gateway-dns: interface "en0" detected IPv4 8.8.4.4
 gateway-dns: updating provider: no confirmed state
-gateway-dns: confirmed 192.0.2.10
+gateway-dns: confirmed 8.8.4.4
 ```
 
 These operational trace lines go to stderr with the final all-profile results;
 they do not enter persisted mail summaries or change notification triggers. An
-unavailable interface produces only its failure result (no fabricated detected
-address or provider call).
+unavailable interface produces a failed source attempt; later sources may still
+succeed. No failed source fabricates an address or sends a provider update.
 
 Every error returns a nonzero exit status, even when other profiles succeeded.
 Each final profile result is printed once as `<profile name>: <result>`; unavailable
-IPv4 diagnostics include the configured interface name. Run-level errors use
+source diagnostics identify the ordered index and selector, without URL/query contents. Run-level errors use
 `[error] <reason>` (without the profile-prefix colon). Profile names are rendered
 literally after validation rejects controls and line separators. Configuration errors identify the quoted
 attempted filename (including the default path when `--config` is omitted), without
@@ -306,7 +360,9 @@ profiles:
 
 The former list syntax now fails with a mapping/migration diagnostic; no automatic
 conversion is performed. Existing version-1 state needs **no conversion**: the same
-decoded name and provider/target/interface/endpoint identity reuse confirmed state.
+decoded name and provider/target/sources/endpoint identity reuse confirmed state.
+Moving an old interface profile to `sources` requires fresh provider confirmation;
+existing state and pending summaries remain readable without rewriting.
 Changing that identity still forces an update; credential-only rotation does not.
 Already pending notifications retain their original order and content (including
 older quoted names and legacy unquoted names). State names and pending summaries are validated before any

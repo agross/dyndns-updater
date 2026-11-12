@@ -6,6 +6,56 @@ mail. Local HTTP fake providers, temporary configuration/state, synthetic
 interface inputs, controlled timestamps, and fake sendmail executables exercise
 observable CLI and provider boundaries.
 
+## Ordered public IPv4 discovery acceptance (#3)
+
+All behavior tests exercise the CLI, real HTTP transports, temporary configuration
+and state, synthetic interface inputs and local discovery/provider/mail fixtures.
+Public-looking addresses are synthetic response data only, never dial targets.
+
+- `TestCLIDiscoverySourceObjects` and `TestCLIRejectSourceConfigurations` cover
+  required object lists, scalar rejection, exactly-one selectors, duplicate/unknown
+  keys, non-string/empty values, named-service validation, URL safety, legacy
+  `interface` rejection and invalid later entries before locking or other effects.
+- `TestCLIDiscoveryOrderedSources` exercises interface-first, private/missing
+  interface fallback, web-first and stop-on-first-success, including no leaked
+  provider authentication and deSEC `myipv6=preserve`.
+- `TestCLIDiscoveryNamedServices` uses generated, trusted local TLS certificates,
+  local system DNS and fail-closed local dial routing for the actual named URLs.
+  It checks Host/SNI/path, IPv4 dialing, plain-text whitespace, the verified HE HTML
+  shape, surrounding markup, unrelated addresses, absent and ambiguous markers.
+  `TestCLIDiscoveryMixedNamedAndCustom` checks ordered named fallback and proves a
+  custom URL at the HE hostname still rejects HTML as non-plain-text.
+- `TestCLIDiscoveryInvalidResponsesFallback` rejects non-public IPv4 categories,
+  malformed/multiple addresses, prose, IPv6, HTML/JSON and oversized bodies.
+  `TestCLIDiscoveryHTTPFailuresAndBudgets` covers status, redirect, truncated read,
+  slow headers/body, untrusted TLS, connection failures and a fresh next-source
+  budget after the first times out. Local provider requests still succeed.
+- `TestCLIDiscoveryDNSFallback` uses local UDP/TCP fixtures for system/first/later
+  success, negative/empty/unusable/IPv6-only answers, SERVFAIL, truncation, timeout,
+  exhaustion, original Host/SNI and no resolver fallback after HTTP/redirect errors.
+  `TestCLIFallbackDefaultsAndOverrides` now runs both provider and discovery
+  journeys, redirecting all default/public resolver destinations to local fixtures.
+  `TestCLIDiscoveryLiteralSkipsDNS` proves literal-IP discovery bypasses DNS;
+  `TestCLIDiscoverySharedDNSAndHTTPBudget` shares one deadline across DNS and HTTP.
+  Repeat deadline tests under the race detector to catch detached DNS workers.
+- `TestCLIDiscoveryExhaustionDurability` preserves the prior address/time, persists
+  failure intent, deduplicates repeated failures, retries identical queued mail,
+  continues independent profiles and clears failure only after provider acceptance.
+  `TestBuiltCLIDiscoveryFailureMailRestart` repeats the journey with a built binary,
+  separate processes and executable fake sendmail, including failed mail retries.
+- `TestCLIDiscoveryIdentityAndFailureDeduplication` requires fresh confirmation on
+  source-list changes without duplicate failure mail; existing refresh, no-op,
+  provider intervention, shared deSEC deadlines and HE abuse-pause journeys now use
+  source-object configurations and retain their durable restriction assertions.
+- Existing cleanup, checkpoint, process-kill, locking, name, notification, retry,
+  DNS and provider suites remain active. Expected diagnostics and detection-failure
+  mail changed deliberately; no tests update real DNS, send real mail or change
+  system/gateway settings. Built journeys use local web sources instead of accepting
+  loopback as public. No compatibility alias or configuration migration is tested.
+
+Focused command: `go test -run 'TestCLIDiscovery|TestCLIRejectSource|TestBuiltCLIDiscovery|TestCLIFallbackDefaults' ./...`.
+Final gates remain the full suite, full race suite, vet and clean `gofmt -l .`.
+
 ## Profile and DNS logging acceptance (#32)
 
 - `TestCLIFallbackResolutionTrace` checks exact ordered attempt/failure/success
@@ -160,8 +210,9 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
 - `TestCLIExactDecodedNameIdentity` covers spaces, numeric/boolean-looking string
   names, case/whitespace/Unicode distinctions, identity changes, refresh, and address
   changes without live providers.
-- `TestCLILegacyStateAndPendingMail` reuses a pre-mapping version-1 state fixture
-  without provider calls and preserves pending content/order across mail failure.
+- `TestCLILegacyStateAndPendingMail` reads an interface-era version-1 state fixture,
+  requires fresh provider confirmation for the new source identity and preserves
+  legacy pending content/order across mail failure.
 - `TestCLIUnsafeStatePreserved` rejects unsafe state names and pending content,
   asserts no provider/mail activity, and compares original state bytes afterward.
 - `TestBuiltCLIMappingNameAndFakeMail` builds and runs the real binary against a
@@ -224,8 +275,8 @@ HE abuse and deSEC fallback explicitly attributed to the owner's issue decisions
   from profile names; mixed profile/mail failures retain both independent errors.
 - `TestCLIMissingStateDirectory` identifies the required state directory.
 - `TestCLIMissingInterfacesReportedOnce` exercises OS interface lookup through
-  the CLI, names both absent interfaces, and checks single profile diagnostics
-  without mail. `TestCLIProfileAndMailFailuresReportedOnce` checks provider
+  the CLI, checks ordered source-failure diagnostics and one all-profile
+  detection-failure notification without provider requests. `TestCLIProfileAndMailFailuresReportedOnce` checks provider
   failures are not duplicated and run-level mail errors remain visible.
 - `TestCLIUpdateDecisionTrace` asserts exact CLI trace output, exit status, and
   provider-call counts for initial update, no-op, address change, refresh at the
@@ -237,7 +288,7 @@ HE abuse and deSEC fallback explicitly attributed to the owner's issue decisions
   controlled 25-day refresh, state removal, and deSEC IPv6 preservation/auth.
 - `TestFailureTransitionsAndIndependentProfiles` covers Tunnelbroker request/auth,
   `nochg` confirmation, independent results, failure entry, persistent/changed
-  errors, recovery, missing-interface suppression, and all-profile summaries.
+  errors, recovery, durable missing-interface failure, and all-profile summaries.
 - `TestIdentityAndCorruptState` covers credential-only rotation, provider/target/
   interface changes, malformed/invalid state preservation, and unreadable state.
 - `TestRejectedResponsesAndTimeout` covers HTTP failures, rejected/malformed/
@@ -268,13 +319,14 @@ HE abuse and deSEC fallback explicitly attributed to the owner's issue decisions
   pending message, demonstrating the documented duplicate-mail crash window.
 
 
-The subprocess interface tests use Linux `lo` and skip when that interface is not
-available (for example macOS); the synthetic-address journeys run on both release
-platforms. Tests use brief bounded waits only to assert that a blocked invocation
+Some historical subprocess tests still check Linux `lo` availability and skip when it is not
+available (for example macOS); subprocess addresses now come from loopback web
+fixtures because loopback interface addresses are not public. The synthetic-address
+journeys run on both release platforms. Tests use brief bounded waits only to assert that a blocked invocation
 has not reached its provider, never to simulate the refresh interval.
 
 [Provider fixtures are based on authoritative documentation](docs/provider-contracts.md),
 not live-provider experiments. Real-provider verification, actual gateway network
 manager integration, MTA delivery, timer installation, and production migration
-remain separate authorized operator checks. Public IP discovery and fallback DNS
-are out of scope for #2 (issues #3/#4).
+remain separate authorized operator checks. Public discovery and fallback DNS are covered by the local fixtures for #3/#4;
+no test requires external discovery or public resolver traffic.

@@ -23,8 +23,8 @@ func TestCLINotificationNamesAndRestart(t *testing.T) {
 	config, mail, cli := "", "Summary generated at: 2026-01-01T00:00:00Z\n", ""
 	for _, name := range names {
 		config += namedProfile(strconv.Quote(name), srv.URL)
-		mail += name + ": confirmed 192.0.2.10\n"
-		cli += name + ": confirmed 192.0.2.10\n"
+		mail += name + ": confirmed 8.0.2.10\n"
+		cli += name + ": confirmed 8.0.2.10\n"
 	}
 	j.write(config)
 	j.mailError = true
@@ -51,7 +51,7 @@ func TestCLINotificationPendingCompatibility(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls++; fmt.Fprint(w, "good") }))
 	defer srv.Close()
 	j.write(namedProfile(`"Tunnel Broker"`, srv.URL))
-	pending := []string{"old-name: unchanged\n", "\"Old: \\\"DNS\": confirmed 192.0.2.1\n", "Removed: profile: unchanged\n", "Summary generated at: unchanged\n", "Summary generated at: 2025-12-31T23:59:59Z\nold: unchanged\n"}
+	pending := []string{"old-name: unchanged\n", "\"Old: \\\"DNS\": confirmed 8.0.2.1\n", "Removed: profile: unchanged\n", "Summary generated at: unchanged\n", "Summary generated at: 2025-12-31T23:59:59Z\nold: unchanged\n"}
 	state := diskState{Version: 1, Profiles: map[string]profileState{}, Pending: pending}
 	b, err := json.Marshal(state)
 	if err != nil {
@@ -62,7 +62,7 @@ func TestCLINotificationPendingCompatibility(t *testing.T) {
 	}
 	j.mailError = true
 	j.run(1)
-	want := append(append([]string{}, pending...), "Summary generated at: 2026-01-01T00:00:00Z\nTunnel Broker: confirmed 192.0.2.10\n")
+	want := append(append([]string{}, pending...), "Summary generated at: 2026-01-01T00:00:00Z\nTunnel Broker: confirmed 8.0.2.10\n")
 	if got := j.state().Pending; strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Fatalf("queue changed: %q", got)
 	}

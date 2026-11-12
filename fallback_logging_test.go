@@ -33,7 +33,7 @@ func TestCLIDNSFailureDiagnostics(t *testing.T) {
 			// Disabled fallback must still log the failed system lookup.
 			j.write(profile("dns", "desec", endpoint))
 			j.fallback()
-			j.ip = "192.0.2.11"
+			j.ip = "8.0.2.11"
 			out = j.run(1)
 			if !strings.Contains(out, systemLog) || strings.Contains(out, "fallback resolver") {
 				t.Fatalf("disabled fallback diagnostics: %s", out)

@@ -436,7 +436,31 @@ updates real DNS or submits real mail.
 
 ## CI, releases, and dependencies
 
-GitHub Actions checks formatting, runs `go vet`, and runs the test suite with the race detector once per pull request update and on pushes to `main`. Pushes to other branches and tags do not start a separate CI run. The same checks are reusable by the manually triggered release workflow: a human selects an existing tag in the form `v1.2.3`, and the resolved release commit must pass CI before publication of Linux and macOS binaries for amd64 and arm64, plus SHA-256 checksums.
+GitHub Actions checks formatting, runs `go vet`, and runs the test suite with the race detector once per pull request update and on pushes to `main`. Pushes to other branches and tags do not start a separate CI run. The same checks are reusable by the manually triggered release workflow, which publishes Linux and macOS binaries for amd64 and arm64, plus SHA-256 checksums.
+
+### Manually release a tested commit
+
+A human runs **Actions → Release → Run workflow**, supplying:
+
+- `version`: a required version such as `v1.2.3` (`vMAJOR.MINOR.PATCH`, with no
+  leading zeroes, prerelease suffix or build metadata).
+- `commit`: optional, default `HEAD`. Empty or `HEAD` selects the repository's
+  **default branch tip**, not the branch selected in the dispatch UI. To release
+  an older commit, supply its commit SHA (or an available Git commit-ish).
+
+The workflow fetches the default branch, resolves the selection once to a full
+commit SHA, and rejects commits not reachable from that branch. Reusable CI
+checks that exact commit; only after it passes does the release job build that
+same commit and create the version tag if missing. Existing lightweight or
+annotated tags are accepted only when they resolve to the tested commit. Tags
+pointing elsewhere are rejected, never force-moved. A final tag check before
+publication rejects tags moved after testing. If a concurrent tag creation
+conflicts or the remote cannot be inspected, the run fails safely; inspect the
+failure before rerunning. An already published release is not overwritten.
+
+No tag needs to be created in advance. Workflow validation and the offline
+regression suite do not dispatch a release, publish anything, or change gateway
+configuration. Release publication remains a separate human-triggered operation.
 
 ### Try a pull request build
 

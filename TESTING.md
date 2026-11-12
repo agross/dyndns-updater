@@ -6,6 +6,20 @@ mail. Local HTTP fake providers, temporary configuration/state, synthetic
 interface inputs, controlled timestamps, and fake sendmail executables exercise
 observable CLI and provider boundaries.
 
+## Release selection acceptance (#39)
+
+`go test -run TestRelease ./...` reads the real release workflow and executes
+its validation, resolution and tag shell steps against temporary local Git
+repositories with a default branch named `trunk` and a divergent dispatch HEAD.
+It checks omitted/explicit HEAD, older reachable commits, unreachable/unknown/
+option-like/multiline selections, strict version syntax, creation of a missing
+tag, matching lightweight/annotated tags, conflicting-tag preservation and
+inaccessible-remote failure. Git and Bash are required; no GitHub credentials,
+network repositories or release publication are used. The workflow-gate test
+also binds the dispatch defaults, tested checkout SHA and build/tag/publish
+ordering to the reusable CI dependency. The publication step is deliberately
+not executed locally. Run `actionlint .github/workflows/*.yml` as well.
+
 ## Source-independent confirmation acceptance (#37)
 
 This supersedes #3's original source-dependent confirmation contract.

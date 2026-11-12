@@ -24,7 +24,7 @@ func TestCLILegacyStateAndPendingMail(t *testing.T) {
 	defer srv.Close()
 	j.write(namedProfile("dns", srv.URL))
 	// Version 1 state from an interface-based configuration remains readable.
-	// Moving to sources changes identity and requires fresh provider confirmation;
+	// The exact interface-era identity is verifiable and reuses confirmation;
 	// preexisting pending bodies must still be submitted byte-for-byte.
 	oldIdentityJSON, _ := json.Marshal([]string{"desec", "example.invalid", "wan", srv.URL})
 	digest := sha256.Sum256(oldIdentityJSON)
@@ -40,12 +40,12 @@ func TestCLILegacyStateAndPendingMail(t *testing.T) {
 	}
 	j.mailError = true
 	j.run(1)
-	if calls != 1 {
-		t.Fatal("source configuration did not require fresh confirmation")
+	if calls != 0 {
+		t.Fatal("verifiable legacy confirmation was not reused")
 	}
 	j.mailError = false
 	j.run(0)
-	if calls != 1 || len(j.mails) != 3 || strings.Join(j.mails[:2], "|") != strings.Join(snapshot.Pending, "|") {
+	if calls != 0 || len(j.mails) != 2 || strings.Join(j.mails[:2], "|") != strings.Join(snapshot.Pending, "|") {
 		t.Fatalf("pending content/order changed: %q", j.mails)
 	}
 }

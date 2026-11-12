@@ -143,9 +143,14 @@ and response details, endpoint overrides, and the HE refresh caveat.
 
 The state file records confirmed addresses, timestamps, hashed profile identity,
 provider failure state, and pending notification content, never credentials.
-Provider, target, ordered source list, or endpoint changes invalidate a profile's old state;
-credential-only changes do not invalidate confirmed success, but release intervention
-restrictions. A failed update, including HE `abuse`, retains its last confirmed
+Provider, target, or endpoint changes invalidate a profile's old confirmation.
+Source selectors, values, and ordering are discovery configuration, not provider
+confirmation identity. Source-only edits retain the same-address confirmation and
+its original refresh deadline, cause no new notification, and never unlock provider
+retry restrictions. Detection still runs on every invocation; a changed address,
+missing confirmation, due refresh, or outstanding failure follows the normal update
+flow. Credential-only changes do not invalidate confirmed success, but release
+intervention restrictions. A failed update, including HE `abuse`, retains its last confirmed
 address and timestamp. An active HE pause survives all configuration changes,
 although identity changes still invalidate the old confirmation.
 After loading a valid configuration and state, each run removes confirmations for
@@ -182,12 +187,35 @@ can cause another safe update on restart. A new address appearing during an upda
 is detected by the next run; only the requested address is recorded on strict
 confirmation.
 
+### Legacy confirmation transition (#37)
+
+New confirmation identities are version-tagged and exclude discovery sources. The
+updater verifies a legacy source-dependent hash against the current configuration
+(or the historical interface identity for a single matching `if` source). An exact
+match reuses the confirmed address and timestamp without a provider request before
+refresh. An opaque mismatch cannot prove an unchanged destination: one fresh strict
+provider acceptance is required, subject to all surviving retry restrictions. This
+can happen when sources are edited at the same time as upgrading. Subsequent
+source-only edits no longer require reconfirmation. No credentials are persisted.
+
+Legacy intervention fingerprints are explicitly transitioned using their persisted
+identity and the current credentials. Unchanged credentials retain the block even
+when the legacy destination cannot be verified; the block is rebound to the current
+destination. Thus a destination-only correction made simultaneously with an
+unverifiable legacy transition may conservatively remain blocked. Correcting the
+credentials or subsequently correcting the destination retains normal retry behavior.
+Shared deSEC deadlines and active HE abuse pauses retain their original deadlines.
+Confirmation reuse or detection alone never clears an outstanding failure. Queued
+mail is retried unchanged; corrupt state is rejected and preserved before any
+provider request or mail submission. Older binaries do not understand the new
+retry-key version field; do not downgrade against transitioned retry state.
+
 ### Provider retry restrictions
 
 - deSEC HTTP 401, 400, and 404 stop requests until the token or profile identity
-  (provider, target, sources, endpoint) changes, or that profile's state is
+  (provider, target, endpoint) changes, or that profile's state is
   explicitly removed. Diagnostics identify authentication, hostname, or domain
-  correction respectively. An address change or elapsed refresh alone does not
+  correction respectively. Source edits, an address change, or elapsed refresh do not
   release these intervention restrictions. Fixes made only on the provider side
   require explicit state removal to retry.
 - deSEC HTTP 429 pauses pending deSEC updates until the persisted UTC deadline.
@@ -360,10 +388,9 @@ profiles:
 
 The former list syntax now fails with a mapping/migration diagnostic; no automatic
 conversion is performed. Existing version-1 state needs **no conversion**: the same
-decoded name and provider/target/sources/endpoint identity reuse confirmed state.
-Moving an old interface profile to `sources` requires fresh provider confirmation;
-existing state and pending summaries remain readable without rewriting.
-Changing that identity still forces an update; credential-only rotation does not.
+decoded name retains state lookup. See [legacy confirmation transition](#legacy-confirmation-transition-37);
+existing pending summaries remain readable and are delivered byte-for-byte.
+Changing provider destination identity still forces an update; credential-only rotation does not.
 Already pending notifications retain their original order and content (including
 older quoted names and legacy unquoted names). State names and pending summaries are validated before any
 provider or mail action. Pending bodies must match the current or legacy generated

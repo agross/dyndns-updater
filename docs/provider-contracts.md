@@ -83,7 +83,7 @@ assigned to HE without evidence. A non-200 `abuse` remains a generic HTTP failur
 ### Exact recovery rules
 
 Intervention holds for deSEC 400/401/404 survive address changes, refresh and
-restarts. Token or identity (provider/target/sources/endpoint) corrections
+restarts and source edits. Token or destination identity (provider/target/endpoint) corrections
 release them. Removing that profile's state also releases them; provider-side-only
 corrections cannot be detected without another request and need an explicit reset.
 HE `abuse` persists an absolute UTC `until = response receipt + 15 minutes`.

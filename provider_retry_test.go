@@ -48,6 +48,11 @@ func TestCLIInterventionRecovery(t *testing.T) {
 					j.write(strings.ReplaceAll(base, "example.invalid", "new.invalid"))
 				case "interface":
 					j.write(strings.ReplaceAll(base, "sources: [{if: wan}]", "sources: [{if: newwan}]"))
+					j.run(1)
+					if calls != 2 || len(j.mails) != 2 {
+						t.Fatal("source edit released intervention")
+					}
+					j.write(strings.ReplaceAll(base, "synthetic-secret", "changed-secret"))
 				case "endpoint":
 					j.write(strings.ReplaceAll(base, srv.URL, srv.URL+"/new"))
 				case "remove-state":

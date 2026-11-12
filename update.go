@@ -42,13 +42,49 @@ func interfaceIPv4(name string) (string, error) {
 	return "", errors.New("interface has no IPv4 address")
 }
 func identity(p Profile) string {
+	b, _ := json.Marshal([]string{p.Provider, p.Target, p.Endpoint})
+	sum := sha256.Sum256(b)
+	return "destination-v1:" + hex.EncodeToString(sum[:])
+}
+
+// verifiedLegacyIdentity recognizes both published historical representations.
+// An opaque mismatch is never evidence of an unchanged provider destination.
+func verifiedLegacyIdentity(p Profile, id string) bool {
 	b, _ := json.Marshal(struct {
 		Provider, Target, Endpoint string
 		Sources                    Sources
 	}{p.Provider, p.Target, p.Endpoint, p.Sources})
 	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:])
+	if id == hex.EncodeToString(sum[:]) {
+		return true
+	}
+	if len(p.Sources) == 1 && p.Sources[0].Selector == "if" {
+		b, _ = json.Marshal([]string{p.Provider, p.Target, p.Sources[0].Value, p.Endpoint})
+		sum = sha256.Sum256(b)
+		return id == hex.EncodeToString(sum[:])
+	}
+	return false
 }
+
+func migrateProfile(p Profile, old profileState) profileState {
+	// Historical intervention keys can be checked with the persisted identity,
+	// without knowing its preimage or persisting credentials. With unchanged
+	// credentials an unverifiable destination must remain conservatively blocked.
+	if r := old.Retry; r != nil && r.KeyVersion == 0 && r.Kind != "desec-rate" && r.Kind != "he-abuse" {
+		if retryKeyForIdentity(p, r.Salt, old.Identity) == r.Key {
+			copy := *r
+			copy.Key, copy.KeyVersion = retryKey(p, r.Salt), 1
+			old.Retry = &copy
+		} else {
+			old.Retry = nil // A credential correction retains its retry behavior.
+		}
+	}
+	if verifiedLegacyIdentity(p, old.Identity) {
+		old.Identity = identity(p)
+	}
+	return old
+}
+
 func providerUpdate(c Config, p Profile, ip string, now func() time.Time, out io.Writer) error {
 	u, _ := url.Parse(p.Endpoint)
 	q := u.Query()
@@ -209,16 +245,16 @@ func update(c Config, d dependencies, out io.Writer) error {
 	notifications := []string{}
 	var failures []error
 	for _, p := range c.Profiles {
-		old := s.Profiles[p.Name]
+		old := migrateProfile(p, s.Profiles[p.Name])
+		if old.Identity != "" {
+			s.Profiles[p.Name] = old
+		}
 		id := identity(p)
 		if old.Identity != id {
-			// Confirmation belongs to the identity, but an HE pause belongs to
-			// the profile name and survives all configuration changes.
+			// Invalidate confirmation, not outstanding failure or retry state.
+			// blockedRetry decides which restrictions survive configuration edits.
 			previous := old
-			old = profileState{Identity: id, Failing: previous.Failing}
-			if previous.Retry != nil && previous.Retry.Kind == "he-abuse" {
-				old.Failing, old.Retry = previous.Failing, previous.Retry
-			}
+			old = profileState{Identity: id, Failing: previous.Failing, Retry: previous.Retry}
 		}
 		current := old
 		ip, e := detectAddress(c, p, d, out)
@@ -305,6 +341,7 @@ func update(c Config, d dependencies, out io.Writer) error {
 				return errors.Join(append(failures, e)...)
 			}
 		} else {
+			s.Profiles[p.Name] = current
 			fmt.Fprintf(out, "%s: skipping update: address unchanged and refresh not due\n", renderProfileName(p.Name))
 		}
 		results = append(results, renderProfileName(p.Name)+": "+status)

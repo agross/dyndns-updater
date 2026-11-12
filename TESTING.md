@@ -6,6 +6,39 @@ mail. Local HTTP fake providers, temporary configuration/state, synthetic
 interface inputs, controlled timestamps, and fake sendmail executables exercise
 observable CLI and provider boundaries.
 
+## Source-independent confirmation acceptance (#37)
+
+This supersedes #3's original source-dependent confirmation contract.
+
+- `TestCLISourceOnlyConfirmation` confirms through local web discovery, switches to
+  a synthetic interface, reverses the change, adds/removes/replaces/reorders sources
+  and checks request/mail counts, unchanged output, retained address/time, discovery
+  on every invocation, and refresh at the original exact deadline.
+- `TestCLISourceEditChangedAddressStrictAcceptance` exercises a changed address,
+  HTTP-200 malformed success, retained confirmation/failure deduplication, and
+  provider-confirmed recovery after further source edits. Destination-change tests
+  cover provider, target, endpoint and missing confirmation.
+- `TestCLILegacySourceConfirmation` uses independently constructed historical hashes
+  to test exact reuse, unverifiable source edits requiring one fresh confirmation,
+  durable transition and unchanged legacy queued bodies. The interface-era journey
+  also reuses an exactly verifiable legacy identity. `TestCLILegacyUnverifiedRejected`
+  rejects trust in an unknown destination and advances only on strict acceptance.
+- Legacy intervention tests cover all deSEC holds, source edits before migration,
+  repeated runs, detection failure, credential correction and subsequent destination
+  correction. An unverifiable simultaneous destination correction remains
+  conservatively restricted; see README. Legacy deadline tests cover deSEC shared
+  wait propagation/removal and HE pauses through source edits and exact expiry.
+- `TestBuiltCLISourceEditQueuedMail` runs a real binary and fake sendmail across
+  source replacement and restart, retries queued bytes without new provider updates,
+  retains confirmation time/address and detects again each time. Corrupt retry-key
+  versions are rejected without changing state or attempting provider/mail activity.
+- Existing ordered detection, validation, independent-profile, cleanup/rename,
+  checkpoint, lock, notification durability, deSEC IPv6 preservation and provider
+  restrictions remain covered by the full suite. No live services are used.
+
+Focused: `go test -run 'TestCLISource|TestCLILegacy|TestCLICorruptRetryVersion|TestBuiltCLISourceEdit' ./...`.
+Final gates: full tests, full race suite, vet, build, formatting and diff checks.
+
 ## Ordered public IPv4 discovery acceptance (#3)
 
 All behavior tests exercise the CLI, real HTTP transports, temporary configuration
@@ -43,8 +76,8 @@ Public-looking addresses are synthetic response data only, never dial targets.
   continues independent profiles and clears failure only after provider acceptance.
   `TestBuiltCLIDiscoveryFailureMailRestart` repeats the journey with a built binary,
   separate processes and executable fake sendmail, including failed mail retries.
-- `TestCLIDiscoveryIdentityAndFailureDeduplication` requires fresh confirmation on
-  source-list changes without duplicate failure mail; existing refresh, no-op,
+- `TestCLIDiscoveryIdentityAndFailureDeduplication` requires provider recovery for
+  outstanding failure after source-list changes without duplicate failure mail; refresh, no-op,
   provider intervention, shared deSEC deadlines and HE abuse-pause journeys now use
   source-object configurations and retain their durable restriction assertions.
 - Existing cleanup, checkpoint, process-kill, locking, name, notification, retry,
@@ -211,7 +244,7 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
   names, case/whitespace/Unicode distinctions, identity changes, refresh, and address
   changes without live providers.
 - `TestCLILegacyStateAndPendingMail` reads an interface-era version-1 state fixture,
-  requires fresh provider confirmation for the new source identity and preserves
+  reuses verifiable confirmation and preserves
   legacy pending content/order across mail failure.
 - `TestCLIUnsafeStatePreserved` rejects unsafe state names and pending content,
   asserts no provider/mail activity, and compares original state bytes afterward.
@@ -229,7 +262,7 @@ For PR artifacts, exercise the workflow's build commands for Linux and macOS on 
   retry at the boundary, IPv6 preservation, queued-mail retry and recovery mail.
 - `TestCLIInterventionRecovery` independently tests HTTP 400/401/404 after a known
   confirmation, retention of the previous address, suppression despite elapsed
-  refresh, no repeated failure mail, token/target/interface/endpoint corrections,
+  refresh, no repeated failure mail, source edits retaining intervention, token/target/endpoint corrections,
   state removal, recovery, and exclusion of secrets/untrusted text from state/mail.
 - `TestCLISharedDeSECRateLimit` checks a longer preferred deadline, distinct-token
   sharing, no request for a second deSEC profile, independent HE success, source

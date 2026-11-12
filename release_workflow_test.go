@@ -84,9 +84,7 @@ func TestReleaseWorkflowResolve(t *testing.T) {
 	releaseCommand(t, dir, "commit", "--allow-empty", "-m", "unmerged")
 	unmerged := releaseCommand(t, dir, "rev-parse", "HEAD")
 	releaseCommand(t, dir, "checkout", "trunk")
-	releaseCommand(t, dir, "remote", "add", "origin", dir)
-	releaseCommand(t, dir, "fetch", "origin")
-	releaseCommand(t, dir, "checkout", "--detach", first)
+	releaseCommand(t, dir, "checkout", "--detach", tip)
 	for _, tc := range []struct{ name, input, want string }{
 		{"ancestor", first, first},
 		{"head", "HEAD", tip},
@@ -97,7 +95,7 @@ func TestReleaseWorkflowResolve(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			output := filepath.Join(t.TempDir(), "output")
 			out, err := runReleaseStep(t, workflow, "resolve", "Resolve commit", dir,
-				"DEFAULT_BRANCH=trunk", "RELEASE_COMMIT="+tc.input, "GITHUB_OUTPUT="+output)
+				"RELEASE_COMMIT="+tc.input, "GITHUB_OUTPUT="+output)
 			if tc.want == "" {
 				if err == nil {
 					t.Fatalf("invalid commit accepted: %s", out)
@@ -158,15 +156,17 @@ func TestReleaseWorkflowPublish(t *testing.T) {
 			if err != nil {
 				t.Fatalf("publish: %v\n%s", err, out)
 			}
-			if got := releaseCommand(t, dir, "rev-parse", "refs/tags/v1.2.3^{commit}"); got != target {
-				t.Fatalf("tag points to %s, want tested commit %s", got, target)
-			}
-			if got := releaseCommand(t, remote, "rev-parse", "refs/tags/v1.2.3^{commit}"); got != target {
-				t.Fatalf("remote tag points to %s, want tested commit %s", got, target)
-			}
 			data, err := os.ReadFile(calls)
-			if err != nil || !strings.HasPrefix(string(data), "release\ncreate\nv1.2.3\n") || !strings.Contains(string(data), "--verify-tag\n") {
-				t.Fatalf("unexpected release request: %q (%v)", data, err)
+			want := "release\ncreate\nv1.2.3\ndist/*.tar.gz\ndist/checksums.txt\n--target\n" + target + "\n--generate-notes\n"
+			if err != nil || string(data) != want {
+				t.Fatalf("unexpected release request: %q, want %q (%v)", data, want, err)
+			}
+			if existing == "matching" {
+				if got := releaseCommand(t, remote, "rev-parse", "refs/tags/v1.2.3^{commit}"); got != target {
+					t.Fatalf("remote tag points to %s, want tested commit %s", got, target)
+				}
+			} else if got := releaseCommand(t, remote, "tag", "--list"); got != "" {
+				t.Fatalf("workflow created a tag instead of delegating to gh: %s", got)
 			}
 		})
 	}

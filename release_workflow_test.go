@@ -85,7 +85,7 @@ func TestReleaseWorkflowResolve(t *testing.T) {
 	unmerged := releaseCommand(t, dir, "rev-parse", "HEAD")
 	releaseCommand(t, dir, "checkout", "trunk")
 	releaseCommand(t, dir, "remote", "add", "origin", dir)
-	releaseCommand(t, dir, "update-ref", "refs/remotes/origin/main", tip)
+	releaseCommand(t, dir, "fetch", "origin")
 	releaseCommand(t, dir, "checkout", "--detach", first)
 	for _, tc := range []struct{ name, input, want string }{
 		{"ancestor", first, first},
